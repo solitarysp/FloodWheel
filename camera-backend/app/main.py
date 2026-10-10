@@ -10,6 +10,7 @@ from app.core.config import settings
 from app.providers.hcmc import HCMCCameraProvider
 from app.services.cache_service import CacheService
 from app.services.catalog_service import CatalogService
+from app.services.storage_service import SnapshotStorageService
 
 logging.basicConfig(
     level=getattr(logging, settings.LOG_LEVEL.upper(), logging.INFO),
@@ -23,13 +24,20 @@ async def lifespan(app: FastAPI):
     """Application lifespan manager initializing connections and providers."""
     logger.info("Initializing %s v%s on port %d...", settings.PROJECT_NAME, settings.VERSION, settings.PORT)
 
-    # 1. Initialize Cache Service
+    # 1. Initialize Storage & Cache Services
+    storage_service = SnapshotStorageService(settings.SNAPSHOT_STORAGE_DIR)
     cache_service = CacheService(settings.REDIS_URL)
     await cache_service.connect()
 
     # 2. Initialize Providers & Catalog Engine
-    hcmc_provider = HCMCCameraProvider(cache_service=cache_service)
-    catalog_service = CatalogService(cache_service=cache_service)
+    hcmc_provider = HCMCCameraProvider(
+        cache_service=cache_service,
+        storage_service=storage_service,
+    )
+    catalog_service = CatalogService(
+        cache_service=cache_service,
+        storage_service=storage_service,
+    )
     catalog_service.register_provider(hcmc_provider)
 
     # 3. Restore cached catalog or trigger background initial sync
@@ -39,6 +47,7 @@ async def lifespan(app: FastAPI):
     catalog_service.start_background_sync(settings.CATALOG_SYNC_INTERVAL_SECONDS)
 
     # 5. Store singletons in app state
+    app.state.storage_service = storage_service
     app.state.cache_service = cache_service
     app.state.catalog_service = catalog_service
     app.state.hcmc_provider = hcmc_provider

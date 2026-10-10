@@ -22,8 +22,11 @@ class FloodReading(BaseModel):
 
 
 class AnalysisResponse(BaseModel):
+    model_config = {"protected_namespaces": ()}
+
     success: bool
     reading: FloodReading
     inference_time_ms: float
     model_used: str
     tokens_used: Optional[int] = None
+

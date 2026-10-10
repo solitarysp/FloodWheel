@@ -1,7 +1,7 @@
 """Abstract Base Class for Camera Providers."""
 
 from abc import ABC, abstractmethod
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Optional, Tuple
 from app.models.camera import CameraDTO
 
 
@@ -27,8 +27,8 @@ class BaseCameraProvider(ABC):
         camera_id: str,
         width: Optional[int] = None,
         height: Optional[int] = None,
-    ) -> bytes:
-        """Retrieves raw JPEG image bytes for a specific camera snapshot."""
+    ) -> Tuple[bytes, str]:
+        """Retrieves raw JPEG image bytes and source indicator ('live', 'disk-storage', 'synthetic')."""
         pass
 
     @abstractmethod

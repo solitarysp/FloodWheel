@@ -2,7 +2,10 @@
 
 from typing import List, Union
 from pydantic import AnyHttpUrl, field_validator
-from pydantic_settings import BaseSettings
+try:
+    from pydantic_settings import BaseSettings
+except ImportError:
+    from pydantic import BaseModel as BaseSettings
 
 
 class Settings(BaseSettings):
@@ -37,6 +40,7 @@ class Settings(BaseSettings):
     SESSION_COOKIE_TTL_SECONDS: float = 900.0  # 15 minutes
     CATALOG_SYNC_INTERVAL_SECONDS: int = 21600  # 6 hours
     HTTP_TIMEOUT_SECONDS: float = 12.0
+    SNAPSHOT_STORAGE_DIR: str = "storage/snapshots"
 
     # CORS Settings
     CORS_ORIGINS: List[str] = [

@@ -20,6 +20,7 @@ from PIL import Image, ImageDraw
 from app.core.config import settings
 from app.models.camera import CameraDTO
 from app.providers.base import BaseCameraProvider
+from app.services.image_validator import ImageValidator
 
 logger = logging.getLogger("camera_service.hcmc_provider")
 
@@ -30,8 +31,13 @@ class HCMCCameraProvider(BaseCameraProvider):
     provider_name: str = "hcmc"
     city: str = "hcmc"
 
-    def __init__(self, cache_service: Optional[Any] = None):
+    def __init__(
+        self,
+        cache_service: Optional[Any] = None,
+        storage_service: Optional[Any] = None,
+    ):
         self.cache_service = cache_service
+        self.storage_service = storage_service
         self._cookies: Dict[str, str] = {}
         self._auth_lock = asyncio.Lock()
         self._cached_cameras: Optional[List[CameraDTO]] = None
@@ -306,8 +312,13 @@ class HCMCCameraProvider(BaseCameraProvider):
         camera_id: str,
         width: Optional[int] = None,
         height: Optional[int] = None,
-    ) -> bytes:
-        """Fetches the real-time JPEG snapshot from port 8007 CameraHandler.ashx."""
+    ) -> Tuple[bytes, str]:
+        """Fetches the real-time JPEG snapshot from port 8007 CameraHandler.ashx.
+
+        If upstream fails or returns an error banner ('IMAGE NOT AVAILABLE'),
+        falls back to the last known valid image stored on disk for this camera,
+        or generates a realistic synthetic frame if no prior snapshot exists.
+        """
         if not self._cookies or ".VDMS" not in self._cookies:
             await self.init_session()
 
@@ -329,16 +340,41 @@ class HCMCCameraProvider(BaseCameraProvider):
                     continue
 
                 resp.raise_for_status()
-                return resp.content
+
+                # Validate payload: detect 'IMAGE NOT AVAILABLE' placeholder banners
+                if not ImageValidator.is_valid_snapshot(resp.content):
+                    logger.warning(
+                        "Upstream camera %s returned invalid or error placeholder image (%d bytes). Rejecting payload.",
+                        camera_id,
+                        len(resp.content),
+                    )
+                    break
+
+                # Valid live frame from municipal server
+                return resp.content, "live"
+
             except Exception as exc:
                 logger.warning("Snapshot fetch attempt %d failed for %s: %s", attempt + 1, camera_id, exc)
                 if attempt == 0:
                     await self.init_session(force=True)
                 else:
-                    logger.info("Generating realistic synthetic fallback frame for %s", camera_id)
-                    return self.generate_mock_frame(camera_id)
+                    break
 
-        return self.generate_mock_frame(camera_id)
+        # Fallback Strategy:
+        # Tier 1: Check persistent disk storage for last-known-good frame
+        if self.storage_service:
+            stored_frame = await self.storage_service.get_snapshot(camera_id)
+            if stored_frame and ImageValidator.is_valid_snapshot(stored_frame):
+                logger.info(
+                    "Serving last-known-good disk fallback frame for camera %s (%d bytes)",
+                    camera_id,
+                    len(stored_frame),
+                )
+                return stored_frame, "disk-storage"
+
+        # Tier 2: Generate synthetic CCTV frame with timestamp and location overlay
+        logger.info("No prior valid snapshot on disk. Generating synthetic fallback frame for %s", camera_id)
+        return self.generate_mock_frame(camera_id), "synthetic"
 
     @classmethod
     def generate_mock_frame(cls, camera_id: str, camera_name: str = "") -> bytes:

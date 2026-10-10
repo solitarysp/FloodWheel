@@ -59,7 +59,7 @@ async def get_camera_snapshot(
 ):
     """Proxies and streams JPEG snapshot image with automated Redis caching."""
     try:
-        frame_bytes, content_type, is_hit = await catalog.get_snapshot(
+        frame_bytes, content_type, is_hit, source = await catalog.get_snapshot(
             camera_id=camera_id,
             width=w,
             height=h,
@@ -78,6 +78,7 @@ async def get_camera_snapshot(
             "Cache-Control": "public, max-age=10",
             "Access-Control-Allow-Origin": "*",
             "X-Cache-Status": "HIT" if is_hit else "MISS",
+            "X-Fallback-Source": source,
             "X-Camera-ID": camera_id,
         },
     )

@@ -26,8 +26,13 @@ logger = logging.getLogger("camera_service.catalog")
 class CatalogService:
     """Manages multi-provider camera registry and catalog queries."""
 
-    def __init__(self, cache_service: CacheService):
+    def __init__(
+        self,
+        cache_service: CacheService,
+        storage_service: Optional[Any] = None,
+    ):
         self.cache_service = cache_service
+        self.storage_service = storage_service
         self._providers: Dict[str, BaseCameraProvider] = {}
         # Fast in-memory index: camera_id -> CameraDTO
         self._cameras_by_id: Dict[str, CameraDTO] = {}
@@ -231,16 +236,16 @@ class CatalogService:
         width: Optional[int] = None,
         height: Optional[int] = None,
         force_refresh: bool = False,
-    ) -> Tuple[bytes, str, bool]:
+    ) -> Tuple[bytes, str, bool, str]:
         """Retrieves camera snapshot frame.
 
-        Returns: (image_bytes, content_type, is_cached_hit)
+        Returns: (image_bytes, content_type, is_cached_hit, fallback_source)
         """
         # 1. Check cache first unless forced
         if not force_refresh:
             cached_bytes = await self.cache_service.get_snapshot(camera_id)
             if cached_bytes:
-                return cached_bytes, "image/jpeg", True
+                return cached_bytes, "image/jpeg", True, "redis"
 
         # 2. Determine owning provider
         cam = self._cameras_by_id.get(camera_id)
@@ -251,14 +256,27 @@ class CatalogService:
             raise RuntimeError("No camera provider available.")
 
         # 3. Pull frame from provider
-        frame_bytes = await provider.get_snapshot(camera_id, width=width, height=height)
+        result = await provider.get_snapshot(camera_id, width=width, height=height)
+        if isinstance(result, tuple) and len(result) == 2:
+            frame_bytes, source = result
+        else:
+            frame_bytes, source = result, "live"
 
-        # 4. Store in cache
+        # 4. If live frame was retrieved, persist to disk immediately
+        if source == "live" and self.storage_service and frame_bytes:
+            await self.storage_service.save_snapshot(camera_id, frame_bytes)
+
+        # 5. Store in cache
         if frame_bytes and len(frame_bytes) > 100:
+            ttl = (
+                settings.SNAPSHOT_CACHE_TTL_SECONDS
+                if source == "live"
+                else 5.0
+            )
             await self.cache_service.set_snapshot(
                 camera_id,
                 frame_bytes,
-                ttl=settings.SNAPSHOT_CACHE_TTL_SECONDS,
+                ttl=ttl,
             )
 
-        return frame_bytes, "image/jpeg", False
+        return frame_bytes, "image/jpeg", False, source
