@@ -60,3 +60,8 @@ yarn-error.log*
 
 # Docker
 .dockerignore
+
+# Camera snapshot disk cache
+camera-backend/storage/snapshots/*.jpg
+camera-backend/storage/snapshots/*.tmp
+!camera-backend/storage/snapshots/.gitkeep

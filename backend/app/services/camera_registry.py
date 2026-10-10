@@ -29,17 +29,10 @@ class CameraRegistry:
         if camera_in.zone_id:
             zone = await session.get(FloodZone, camera_in.zone_id)
             if not zone:
-                from app.db.seed_data import SAMPLE_ZONES
-                matched_zone_data = next((z for z in SAMPLE_ZONES if z["id"] == camera_in.zone_id), None)
-                if matched_zone_data:
-                    new_zone = FloodZone(**matched_zone_data, last_updated_at=datetime.now(timezone.utc))
-                    session.add(new_zone)
-                    await session.flush()
-                else:
-                    raise HTTPException(
-                        status_code=400,
-                        detail=f"Flood zone '{camera_in.zone_id}' does not exist. Choose an existing zone or leave unassigned.",
-                    )
+                raise HTTPException(
+                    status_code=400,
+                    detail=f"Flood zone '{camera_in.zone_id}' does not exist. Choose an existing zone or leave unassigned.",
+                )
 
         cam = Camera(
             id=camera_in.id,
