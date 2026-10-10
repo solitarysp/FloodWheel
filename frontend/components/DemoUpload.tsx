@@ -303,10 +303,10 @@ export const DemoUpload: React.FC<DemoUploadProps> = ({
 
             <div className="mb-4">
               <h3 className="text-xl font-bold text-slate-900">
-                Kho 20 Ảnh Benchmark Thực tế (Wikimedia Commons)
+                Kho 20 Ảnh Benchmark Thực tế (Đô thị Việt Nam & Ngập lụt)
               </h3>
               <p className="text-xs text-slate-500 mt-0.5">
-                Chọn bất kỳ ảnh nào để tải và kiểm tra khả năng suy luận thước đo VLRDR của Gemini
+                Chọn bất kỳ ảnh nào để nạp và kiểm tra khả năng suy luận thước đo VLRDR của Gemini
               </p>
 
               {/* Tabs */}
