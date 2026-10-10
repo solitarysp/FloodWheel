@@ -13,8 +13,8 @@ services:
       - ENVIRONMENT=development
       - LOG_LEVEL=INFO
       - GEMINI_API_KEY=${GEMINI_API_KEY:-}
-      - GEMINI_MODEL=${GEMINI_MODEL:-gemini-2.0-flash}
-      - GEMINI_FALLBACK_MODEL=${GEMINI_FALLBACK_MODEL:-gemini-1.5-flash}
+      - GEMINI_MODEL=${GEMINI_MODEL:-gemini-3.8-flash}
+      - GEMINI_FALLBACK_MODEL=${GEMINI_FALLBACK_MODEL:-gemini-2.5-flash}
       - DATABASE_URL=postgresql+asyncpg://postgres:postgres@postgres:5432/floodwheel
       - REDIS_URL=redis://redis:6379/0
       - CORS_ORIGINS=["http://localhost:3000","http://127.0.0.1:3000"]

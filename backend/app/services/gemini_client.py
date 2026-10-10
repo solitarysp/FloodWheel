@@ -63,8 +63,19 @@ class GeminiClient:
         if not self._client or not self.api_key or self.api_key.startswith("your_"):
             return await self._mock_analysis(image_bytes)
 
-        # Attempt call with retries and model fallback
-        models_to_try = [self.primary_model, self.fallback_model]
+        # Candidate models with automatic fallbacks
+        candidate_models = [
+            self.primary_model,
+            "gemini-3.8-flash",
+            "models/gemini-3.8-flash",
+            self.fallback_model,
+            "gemini-2.5-flash",
+        ]
+        models_to_try = []
+        for m in candidate_models:
+            if m and m not in models_to_try:
+                models_to_try.append(m)
+
         last_error = None
 
         for model in models_to_try:
@@ -79,12 +90,21 @@ class GeminiClient:
                         user_prompt=user_prompt,
                     )
                     elapsed = time.time() - start_time
-                    logger.info(f"Gemini response received in {elapsed:.2f}s (tokens={tokens})")
+                    logger.info(f"Gemini response received from model={model} in {elapsed:.2f}s (tokens={tokens})")
                     return raw_text, model, elapsed, tokens
 
                 except Exception as exc:
                     last_error = exc
                     elapsed = time.time() - start_time
+                    err_str = str(exc)
+
+                    # If model is 404 / NOT_FOUND / no longer available, skip immediately to next model
+                    if any(kw in err_str for kw in ["404", "NOT_FOUND", "no longer available", "not found"]):
+                        logger.warning(
+                            f"Model '{model}' is not available ({exc}). Immediately advancing to next candidate model."
+                        )
+                        break
+
                     delay = 2 ** (attempt - 1)
                     logger.warning(
                         f"Gemini API call failed (model={model}, attempt={attempt}, elapsed={elapsed:.2f}s): {exc}. "
@@ -93,8 +113,9 @@ class GeminiClient:
                     if attempt < max_retries:
                         await asyncio.sleep(delay)
 
-        logger.error(f"All Gemini retries failed. Last error: {last_error}. Returning simulated fallback.")
+        logger.error(f"All Gemini retries failed across candidates {models_to_try}. Last error: {last_error}. Returning simulated fallback.")
         return await self._mock_analysis(image_bytes)
+
 
     async def _call_gemini_api(
         self,

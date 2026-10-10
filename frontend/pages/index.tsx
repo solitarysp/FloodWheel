@@ -134,8 +134,9 @@ export default function HomePage() {
             <div className="bg-white p-6 rounded-2xl border border-slate-200 space-y-2">
               <Activity className="w-6 h-6 text-indigo-600" />
               <h4 className="font-bold text-slate-900">Sub-second Speed</h4>
-              <p className="text-xs text-slate-600">Gemini 2.0 Flash xử lý ảnh và trả về JSON độ sâu chỉ trong 300–600ms.</p>
+              <p className="text-xs text-slate-600">Gemini 3.8 Flash xử lý ảnh và trả về JSON độ sâu chỉ trong 300–600ms.</p>
             </div>
+
 
             <div className="bg-white p-6 rounded-2xl border border-slate-200 space-y-2">
               <MapPin className="w-6 h-6 text-emerald-600" />

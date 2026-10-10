@@ -207,3 +207,20 @@ Implemented all deliverables for Phase 3 (Alerts, Routing & Scale: UOW-021 throu
 - Total Units of Work: 26 / 26 ✅
 - Project Status: Greenfield Inception & Construction Completed Successfully.
 
+---
+
+### [2026-10-10T10:35:31+07:00] MODEL MIGRATION TO GEMINI 3.8 FLASH
+
+**User Log Observation:**
+Google GenAI API responded with 404 NOT_FOUND:
+`"This model models/gemini-2.0-flash is no longer available. Please update your code to use models/gemini-3.8-flash for the latest features and improvements."`
+
+**AI Action:**
+- Updated primary Gemini model from deprecated `gemini-2.0-flash` to `gemini-3.8-flash`.
+- Updated fallback model to `gemini-2.5-flash`.
+- Updated `backend/app/config.py`, `.env`, `.env.example`, and `docker-compose.yml`.
+- Enhanced `backend/app/services/gemini_client.py`:
+  - Added smart candidate list (`gemini-3.8-flash`, `models/gemini-3.8-flash`, `gemini-2.5-flash`).
+  - Implemented fast-skip on 404/NOT_FOUND errors to avoid wasting retry delays on retired models.
+
+
