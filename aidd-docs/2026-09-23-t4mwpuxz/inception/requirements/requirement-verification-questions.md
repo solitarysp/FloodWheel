@@ -13,7 +13,7 @@ B) Hackathon demo + immediately deployable pilot for one city (e.g., HCMC)
 C) Full production system from day 1, targeting multiple cities simultaneously
 X) Other (write your explanation after the [Answer]: tag)
 
-[Answer]:
+[Answer]: B) Hackathon demo + immediately deployable pilot for one city (e.g., HCMC). Follows the 3-phase execution plan: Phase 1 completes the 3-minute hackathon demo (UOW-001 to UOW-007), transitioning directly into the Phase 2 real-world pilot in HCMC.
 
 ---
 
@@ -25,7 +25,7 @@ B) Gemini 1.5 Pro for ambiguous frames, Flash for clear ones (hybrid)
 C) Gemini 2.0 Flash (latest, potentially better vision)
 X) Other (write your explanation after the [Answer]: tag)
 
-[Answer]:
+[Answer]: C) Gemini 2.0 Flash (with configurable fallback to Gemini 1.5 Flash via environment variable `GEMINI_MODEL`). Provides superior spatial reasoning, sub-second latency (~500ms), and native structured JSON output at minimal cost.
 
 ---
 
@@ -38,7 +38,7 @@ C) Simulated/pre-recorded video feeds for demo; real integration deferred
 D) Partnership with telecom/ISP that manages camera infrastructure
 X) Other (write your explanation after the [Answer]: tag)
 
-[Answer]:
+[Answer]: X) Phased approach: C for Phase 1 Demo (simulated & pre-recorded video feeds/snapshots like Nguyen Huu Canh, Vo Van Ngan to ensure 100% demo reliability without external downtime), expanding to B for Phase 2 Pilot (connecting to public city CCTV web feeds e.g. giaothong.hochiminhcity.gov.vn).
 
 ---
 
@@ -51,7 +51,7 @@ C) Both: operator dashboard + public map
 D) API-only (no frontend, consumed by partners like Grab)
 X) Other (write your explanation after the [Answer]: tag)
 
-[Answer]:
+[Answer]: C) Both: operator dashboard + public map. Implemented via Next.js: public responsive heatmap view for commuters/drivers, plus an authenticated administrative control panel for municipal flood monitoring operators.
 
 ---
 
@@ -63,7 +63,7 @@ B) Node.js (TypeScript) — good for real-time streaming
 C) Go — high performance for many concurrent camera streams
 X) Other (write your explanation after the [Answer]: tag)
 
-[Answer]:
+[Answer]: A) Python (FastAPI). First-class support for Google GenAI SDK, Pydantic data validation, async REST/WebSocket streaming, and seamless integration with OpenCV/image processing libraries.
 
 ---
 
@@ -75,7 +75,7 @@ B) Mapbox GL JS (powerful styling, vector tiles)
 C) Leaflet.js with OpenStreetMap (open source, free)
 X) Other (write your explanation after the [Answer]: tag)
 
-[Answer]:
+[Answer]: B) Mapbox GL JS. High-performance WebGL vector tiles, native GeoJSON heatmap rendering, customizable dark/rain weather layers, and smooth camera animations.
 
 ---
 
@@ -87,7 +87,7 @@ B) No — focus on web dashboard for operators first, mobile deferred
 C) Yes — but only read-only map access, no operator features
 X) Other (write your explanation after the [Answer]: tag)
 
-[Answer]:
+[Answer]: C) Yes — but only read-only map access, no operator features. Optimizes mobile view for commuters and delivery drivers (Grab/ShopeeFood) with GPS location and route alerts, while keeping heavy operator controls on desktop.
 
 ---
 
@@ -100,6 +100,6 @@ C) On-premise / city government servers (data sovereignty requirement)
 D) Any cloud — containerized (Docker/Kubernetes), infrastructure-agnostic
 X) Other (write your explanation after the [Answer]: tag)
 
-[Answer]:
+[Answer]: D) Any cloud — containerized (Docker Compose for local development/demo, Kubernetes/GCP Cloud Run ready), ensuring infrastructure-agnostic deployment while keeping GCP as the recommended primary cloud.
 
 ---

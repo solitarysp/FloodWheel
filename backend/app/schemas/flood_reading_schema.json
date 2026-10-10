@@ -1,0 +1,67 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "FloodReading",
+  "type": "object",
+  "required": [
+    "camera_id",
+    "timestamp",
+    "flood_detected",
+    "confidence_score",
+    "reasoning",
+    "alert_message"
+  ],
+  "properties": {
+    "camera_id": {
+      "type": "string",
+      "description": "Unique camera identifier or demo-upload"
+    },
+    "timestamp": {
+      "type": "string",
+      "format": "date-time",
+      "description": "Timestamp of analysis"
+    },
+    "flood_detected": {
+      "type": "boolean",
+      "description": "True if water/flooding is visually detected"
+    },
+    "confidence_score": {
+      "type": "number",
+      "minimum": 0.0,
+      "maximum": 1.0,
+      "description": "AI confidence score between 0.0 and 1.0"
+    },
+    "depth_level": {
+      "type": ["integer", "null"],
+      "minimum": 0,
+      "maximum": 5,
+      "description": "Depth level 0-5 or null if indeterminable"
+    },
+    "depth_estimate_cm_min": {
+      "type": "integer",
+      "minimum": 0,
+      "description": "Estimated minimum depth in centimeters"
+    },
+    "depth_estimate_cm_max": {
+      "type": "integer",
+      "minimum": 0,
+      "description": "Estimated maximum depth in centimeters"
+    },
+    "reference_objects_used": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      },
+      "description": "List of landmarks used for depth estimation"
+    },
+    "reasoning": {
+      "type": "string",
+      "maxLength": 1000,
+      "description": "Visual evidence reasoning explanation"
+    },
+    "alert_message": {
+      "type": "string",
+      "maxLength": 300,
+      "description": "User-facing summary warning"
+    }
+  }
+}

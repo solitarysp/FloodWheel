@@ -1,0 +1,32 @@
+[
+  {
+    "image_name": "nguyen_huu_canh_level3.jpg",
+    "location": "Đường Nguyễn Hữu Cảnh, Quận Bình Thạnh, TP.HCM",
+    "expected_flood_detected": true,
+    "expected_depth_level": 3,
+    "depth_estimate_cm_min": 30,
+    "depth_estimate_cm_max": 38,
+    "reference_objects": ["motorcycle wheel (1/2 submerged)", "motorcycle exhaust pipe submerged", "sidewalk curb"],
+    "expected_alert": "Ngập 30-38cm! Ống xả xe máy đã chìm. Xe 2 bánh và sedan không nên di chuyển qua đoạn đường này."
+  },
+  {
+    "image_name": "vo_van_ngan_level4.jpg",
+    "location": "Đường Võ Văn Ngân, TP. Thủ Đức, TP.HCM",
+    "expected_flood_detected": true,
+    "expected_depth_level": 4,
+    "depth_estimate_cm_min": 50,
+    "depth_estimate_cm_max": 65,
+    "reference_objects": ["motorcycle seat level submerged", "car door sill submerged", "water current waves"],
+    "expected_alert": "Báo động ngập sâu 50-65cm! Nước ngập lút yên xe máy, tràn sàn xe hơi. Tuyến đường tê liệt."
+  },
+  {
+    "image_name": "le_loi_level0_dry.jpg",
+    "location": "Đường Lê Lợi, Quận 1, TP.HCM",
+    "expected_flood_detected": false,
+    "expected_depth_level": 0,
+    "depth_estimate_cm_min": 0,
+    "depth_estimate_cm_max": 0,
+    "reference_objects": ["motorcycle tires dry on asphalt", "curb fully visible"],
+    "expected_alert": "Mặt đường khô ráo, các phương tiện lưu thông bình thường."
+  }
+]
