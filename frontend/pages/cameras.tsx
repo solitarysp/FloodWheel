@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useRef } from "react";
 import Head from "next/head";
+import dynamic from "next/dynamic";
 import { Navbar } from "../components/Navbar";
 import { CameraCard, Camera } from "../components/CameraCard";
 import { CameraAnalysisModal, AnalysisResponse } from "../components/CameraAnalysisModal";
@@ -17,9 +18,24 @@ import {
   MapPin,
 } from "lucide-react";
 
+// Client-only dynamic import of CameraMap with custom loading placeholder
+const CameraMap = dynamic(
+  () => import("../components/CameraMap").then((mod) => mod.CameraMap),
+  {
+    ssr: false,
+    loading: () => (
+      <div className="w-full h-[620px] bg-slate-900 rounded-3xl flex flex-col items-center justify-center text-slate-400 gap-3 border border-slate-800 animate-pulse">
+        <div className="w-8 h-8 border-4 border-blue-500/30 border-t-blue-500 rounded-full animate-spin" />
+        <span className="text-xs font-semibold tracking-wide">Loading HCMC Surveillance Map...</span>
+      </div>
+    ),
+  }
+);
+
 export default function CamerasPage() {
   const [cameras, setCameras] = useState<Camera[]>([]);
   const [loading, setLoading] = useState<boolean>(true);
+  const [viewMode, setViewMode] = useState<"map" | "grid">("map");
   const [searchQuery, setSearchQuery] = useState<string>("");
   const [selectedDistrict, setSelectedDistrict] = useState<string>("all");
   const [refreshInterval, setRefreshInterval] = useState<number>(30); // 30s default
@@ -106,6 +122,17 @@ export default function CamerasPage() {
     }
   };
 
+  // Extract unique districts dynamically from cameras list
+  const availableDistricts = React.useMemo(() => {
+    const set = new Set<string>();
+    cameras.forEach((c) => {
+      if (c.location && c.location.trim().length > 0) {
+        set.add(c.location.trim());
+      }
+    });
+    return Array.from(set).sort((a, b) => a.localeCompare(b));
+  }, [cameras]);
+
   // Filter cameras
   const filteredCameras = cameras.filter((cam) => {
     const matchesSearch =
@@ -115,10 +142,13 @@ export default function CamerasPage() {
 
     if (!matchesSearch) return false;
 
-    if (selectedDistrict === "all") return true;
-    if (selectedDistrict === "binh_thanh") return cam.location.toLowerCase().includes("binh thanh");
-    if (selectedDistrict === "district_1") return cam.location.toLowerCase().includes("district 1") || cam.location.toLowerCase().includes("d1");
-    if (selectedDistrict === "thu_duc") return cam.location.toLowerCase().includes("thu duc");
+    if (selectedDistrict !== "all") {
+      const loc = cam.location.toLowerCase();
+      const target = selectedDistrict.toLowerCase();
+      if (loc !== target && !loc.includes(target)) {
+        return false;
+      }
+    }
 
     return true;
   });
@@ -195,18 +225,48 @@ export default function CamerasPage() {
 
           {/* Filters & Actions */}
           <div className="flex flex-wrap items-center gap-2.5">
+            {/* View Mode Toggle: Map View vs Grid View */}
+            <div className="flex items-center bg-slate-100 p-1 rounded-xl border border-slate-200 text-xs">
+              <button
+                type="button"
+                onClick={() => setViewMode("map")}
+                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg font-semibold transition ${
+                  viewMode === "map"
+                    ? "bg-white text-blue-600 shadow-sm"
+                    : "text-slate-600 hover:text-slate-900"
+                }`}
+              >
+                <MapPin className="w-3.5 h-3.5" />
+                <span>Map View</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => setViewMode("grid")}
+                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg font-semibold transition ${
+                  viewMode === "grid"
+                    ? "bg-white text-blue-600 shadow-sm"
+                    : "text-slate-600 hover:text-slate-900"
+                }`}
+              >
+                <Layers className="w-3.5 h-3.5" />
+                <span>Grid View</span>
+              </button>
+            </div>
+
             {/* District Filter */}
             <div className="flex items-center gap-1.5 bg-slate-50 px-3 py-1.5 rounded-xl border border-slate-200 text-xs text-slate-700">
               <Filter className="w-3.5 h-3.5 text-slate-400" />
               <select
                 value={selectedDistrict}
                 onChange={(e) => setSelectedDistrict(e.target.value)}
-                className="bg-transparent font-medium focus:outline-none cursor-pointer"
+                className="bg-transparent font-medium focus:outline-none cursor-pointer max-w-[150px] truncate"
               >
                 <option value="all">All Districts</option>
-                <option value="binh_thanh">Binh Thanh</option>
-                <option value="thu_duc">Thu Duc City</option>
-                <option value="district_1">District 1</option>
+                {availableDistricts.map((district) => (
+                  <option key={district} value={district}>
+                    {district}
+                  </option>
+                ))}
               </select>
             </div>
 
@@ -246,29 +306,53 @@ export default function CamerasPage() {
           </div>
         </div>
 
-        {/* Camera Cards Grid */}
+        {/* Main Content: Map View or Grid View */}
         {loading ? (
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-            {[1, 2, 3, 4, 5, 6].map((i) => (
-              <div key={i} className="bg-white rounded-2xl p-4 border border-slate-200 animate-pulse space-y-4">
-                <div className="h-4 bg-slate-200 rounded w-2/3" />
-                <div className="aspect-video bg-slate-200 rounded-xl" />
-                <div className="h-8 bg-slate-200 rounded" />
-              </div>
-            ))}
-          </div>
+          viewMode === "map" ? (
+            <div className="w-full h-[620px] bg-slate-900 rounded-3xl flex flex-col items-center justify-center text-slate-400 gap-3 border border-slate-800 animate-pulse">
+              <div className="w-8 h-8 border-4 border-blue-500/30 border-t-blue-500 rounded-full animate-spin" />
+              <span className="text-xs font-semibold tracking-wide">Loading Surveillance Map...</span>
+            </div>
+          ) : (
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+              {[1, 2, 3, 4, 5, 6].map((i) => (
+                <div key={i} className="bg-white rounded-2xl p-4 border border-slate-200 animate-pulse space-y-4">
+                  <div className="h-4 bg-slate-200 rounded w-2/3" />
+                  <div className="aspect-video bg-slate-200 rounded-xl" />
+                  <div className="h-8 bg-slate-200 rounded" />
+                </div>
+              ))}
+            </div>
+          )
         ) : filteredCameras.length > 0 ? (
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-            {filteredCameras.map((camera) => (
-              <CameraCard
-                key={camera.id}
-                camera={camera}
-                cacheBuster={cacheBuster}
+          viewMode === "map" ? (
+            <div className="space-y-4">
+              <div className="flex items-center justify-between px-1">
+                <span className="text-xs text-slate-500 font-medium">
+                  Showing <strong className="text-slate-700">{filteredCameras.length}</strong> cameras on interactive map. Click a marker to inspect snapshot or run AI analysis.
+                </span>
+                <span className="text-xs text-blue-600 font-semibold bg-blue-50 px-2.5 py-1 rounded-full border border-blue-100">
+                  Cluster-Enabled 60fps
+                </span>
+              </div>
+              <CameraMap
+                cameras={filteredCameras}
                 onAnalyze={handleAnalyze}
-                isAnalyzing={analyzingId === camera.id}
               />
-            ))}
-          </div>
+            </div>
+          ) : (
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+              {filteredCameras.map((camera) => (
+                <CameraCard
+                  key={camera.id}
+                  camera={camera}
+                  cacheBuster={cacheBuster}
+                  onAnalyze={handleAnalyze}
+                  isAnalyzing={analyzingId === camera.id}
+                />
+              ))}
+            </div>
+          )
         ) : (
           <div className="text-center py-16 bg-white rounded-3xl border border-slate-200/80 p-8">
             <CameraIcon className="w-12 h-12 text-slate-300 mx-auto mb-3" />

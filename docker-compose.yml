@@ -61,6 +61,7 @@ services:
     environment:
       - NEXT_PUBLIC_API_URL=http://localhost:8000
       - NEXT_PUBLIC_MAPBOX_TOKEN=${NEXT_PUBLIC_MAPBOX_TOKEN:-}
+      - NEXT_PUBLIC_CARTO_API_KEY=${NEXT_PUBLIC_CARTO_API_KEY:-cb1_4g68_1_c5828bbd64347d68c42bf808}
     volumes:
       - ./frontend:/app
       - /app/node_modules
