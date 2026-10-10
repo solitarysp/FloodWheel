@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from "react";
 import Head from "next/head";
+import Link from "next/link";
 import { Navbar } from "@/components/Navbar";
 import { FloodMap, GeoJsonData } from "@/components/FloodMap";
 import { ZoneDetailPanel } from "@/components/ZoneDetailPanel";
@@ -121,6 +122,10 @@ export default function DashboardPage() {
             <div>
               <div className="text-xs font-semibold text-slate-400">Online CCTV Cameras</div>
               <div className="text-2xl font-black text-emerald-400 mt-0.5">5 / 5</div>
+              <Link href="/cameras" className="text-[11px] text-blue-400 hover:text-blue-300 font-medium flex items-center gap-1 mt-1">
+                <span>View Live Feeds</span>
+                <span>→</span>
+              </Link>
             </div>
             <div className="w-10 h-10 rounded-xl bg-emerald-500/20 text-emerald-400 flex items-center justify-center">
               <Video className="w-5 h-5" />

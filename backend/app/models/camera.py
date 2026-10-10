@@ -10,6 +10,7 @@ class CameraBase(BaseModel):
     longitude: float = Field(..., ge=-180.0, le=180.0)
     camera_angle: str = Field("elevated", description="street_level, elevated, or overhead")
     stream_url: str = Field(..., max_length=512)
+    video_url: Optional[str] = Field(None, max_length=512, description="Optional HLS .m3u8 live video stream URL")
     zone_id: Optional[str] = Field(None, max_length=64)
 
 
@@ -24,6 +25,7 @@ class CameraUpdate(BaseModel):
     longitude: Optional[float] = None
     camera_angle: Optional[str] = None
     stream_url: Optional[str] = None
+    video_url: Optional[str] = None
     zone_id: Optional[str] = None
     status: Optional[str] = None
 

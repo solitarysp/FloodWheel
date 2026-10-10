@@ -32,16 +32,29 @@ async def get_db() -> AsyncGenerator[AsyncSession, None]:
 
 
 async def init_db() -> None:
-    """Initializes tables in database."""
+    """Initializes tables and extensions in database with robust error isolation."""
+    from sqlalchemy import text
+
+    # 1. Enable PostGIS if running on PostgreSQL (non-fatal if already present or unprivileged)
+    if "postgresql" in settings.DATABASE_URL:
+        try:
+            async with engine.begin() as conn:
+                await conn.execute(text("CREATE EXTENSION IF NOT EXISTS postgis;"))
+        except Exception as ext_err:
+            logger.info(f"PostGIS extension check notice: {ext_err}")
+
+    # 2. Create all ORM tables
     try:
         async with engine.begin() as conn:
-            # Enable PostGIS if on PostgreSQL
-            if "postgresql" in settings.DATABASE_URL:
-                try:
-                    await conn.execute("CREATE EXTENSION IF NOT EXISTS postgis;")
-                except Exception as ext_err:
-                    logger.warning(f"PostGIS extension creation skipped/failed: {ext_err}")
             await conn.run_sync(Base.metadata.create_all)
-        logger.info("Database tables initialized successfully.")
+        logger.info("Database tables verified/created successfully.")
     except Exception as e:
-        logger.warning(f"Database initialization warning (DB might be offline during build): {e}")
+        logger.warning(f"Database table creation warning: {e}")
+
+    # 3. Apply schema updates (e.g. video_url column on cameras table)
+    if "postgresql" in settings.DATABASE_URL:
+        try:
+            async with engine.begin() as conn:
+                await conn.execute(text("ALTER TABLE cameras ADD COLUMN IF NOT EXISTS video_url VARCHAR(512);"))
+        except Exception as col_err:
+            logger.debug(f"video_url column check note: {col_err}")

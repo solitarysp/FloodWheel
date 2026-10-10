@@ -1,0 +1,53 @@
+- application [ref=e1]:
+  - region [ref=e2]:
+    - tablist [ref=e3]:
+      - text: 
+      - tab "Tình hình giao thông" [selected] [ref=e4] [cursor=pointer]
+      - tab "Tiện ích" [ref=e6] [cursor=pointer]
+      - tab "Dữ liệu liên kết" [ref=e8] [cursor=pointer]
+      - tab "Tìm đường" [ref=e10] [cursor=pointer]
+      - text: 
+    - tabpanel "Tình hình giao thông" [ref=e12]:
+      - group [ref=e13]:  
+      - rowgroup:
+        - row "Loại dữ liệu":
+          - columnheader "Loại dữ liệu"
+          - columnheader
+          - columnheader
+      - treegrid
+      - rowgroup:
+        - row "Tên lớp dữ liệu":
+          - columnheader "Tên lớp dữ liệu"
+          - columnheader
+      - treegrid
+  - text: 
+  - region "Thanh công cụ" [ref=e14]:
+    - heading "Thanh công cụ"
+    - button "SỞ XÂY DỰNG TP HỒ CHÍ MINH" [ref=e15] [cursor=pointer]
+    - button "Trang chủ" [ref=e17] [cursor=pointer]
+    - button "Bản đồ" [ref=e19] [cursor=pointer]
+    - button "Tra cứu" [ref=e21] [cursor=pointer]
+    - button "Phản ánh" [ref=e23] [cursor=pointer]
+    - button "Giới thiệu " [ref=e25] [cursor=pointer]:
+      - generic [ref=e26]: Giới thiệu
+      - text: 
+  - region "Bản đồ" [ref=e27]:
+    - heading "Bản đồ"
+    - group [ref=e28]:
+      - combobox [ref=e29]
+      - text: 
+      - button " 1:15:42 Chiều" [ref=e30] [cursor=pointer]:
+        - text: 
+        - generic [ref=e31]: 1:15:42 Chiều
+    - generic [ref=e32]:
+      - img [ref=e34] [cursor=pointer]
+      - generic [ref=e35]:
+        - generic [ref=e36] [cursor=pointer]
+        - generic [ref=e38]:
+          - generic [ref=e39] [cursor=pointer]
+          - generic [ref=e41] [cursor=pointer]
+      - generic [ref=e43]: 1 km
+    - generic [ref=e45] [cursor=pointer]: 
+  - text:                    
+  - button [active] [ref=e47] [cursor=pointer]
+  - generic "moderate rain - 73 - 1008 -" [ref=e51] [cursor=pointer]: 31°

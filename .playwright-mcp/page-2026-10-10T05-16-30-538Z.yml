@@ -1,0 +1,87 @@
+- application [ref=e1]:
+  - region [ref=e2]:
+    - tablist [ref=e3]:
+      - text: 
+      - tab "Tình hình giao thông" [selected] [ref=e4] [cursor=pointer]
+      - tab "Tiện ích" [ref=e6] [cursor=pointer]
+      - tab "Dữ liệu liên kết" [ref=e8] [cursor=pointer]
+      - tab "Tìm đường" [ref=e10] [cursor=pointer]
+      - text: 
+    - tabpanel "Tình hình giao thông" [ref=e12]:
+      - group [ref=e13]:  
+      - rowgroup:
+        - row "Loại dữ liệu":
+          - columnheader "Loại dữ liệu"
+          - columnheader
+          - columnheader
+      - treegrid [ref=e14]:
+        - row [level=2] [ref=e15]:
+          - gridcell "Camera" [ref=e16]
+          - gridcell [ref=e18]:
+            - button [ref=e20] [cursor=pointer]
+          - gridcell [ref=e21]:
+            - generic [ref=e22]:
+              - text: 
+              - checkbox [ref=e23]
+        - row [level=2] [ref=e24]:
+          - gridcell "Biển báo tốc độ" [ref=e25]
+          - gridcell [ref=e27]:
+            - button [ref=e29] [cursor=pointer]
+          - gridcell [ref=e30]:
+            - generic [ref=e31]:
+              - text: 
+              - checkbox [ref=e32]
+        - row "Khu vực nội đô và đường hành lang" [level=2] [ref=e33]:
+          - gridcell "Khu vực nội đô và đường hành lang" [ref=e34] [cursor=pointer]
+          - gridcell [ref=e36] [cursor=pointer]:
+            - button [ref=e38]
+          - gridcell [ref=e39] [cursor=pointer]:
+            - generic [ref=e40]: 
+        - row [level=2] [ref=e41]:
+          - gridcell "Tình trạng giao thông" [ref=e42]
+          - gridcell [ref=e44]:
+            - button [ref=e46] [cursor=pointer]
+          - gridcell [ref=e47]:
+            - generic [ref=e48]:
+              - text: 
+              - checkbox [ref=e49]
+      - rowgroup:
+        - row "Tên lớp dữ liệu":
+          - columnheader "Tên lớp dữ liệu"
+          - columnheader
+      - treegrid [ref=e50]:
+        - row "Thông tin khác" [expanded] [level=1] [ref=e51]:
+          - gridcell "Thông tin khác" [ref=e52]
+          - gridcell [ref=e55]:
+            - generic [ref=e56]: 
+  - text: 
+  - region "Thanh công cụ" [ref=e57]:
+    - heading "Thanh công cụ"
+    - button "SỞ XÂY DỰNG TP HỒ CHÍ MINH" [ref=e58] [cursor=pointer]
+    - button "Trang chủ" [ref=e60] [cursor=pointer]
+    - button "Bản đồ" [ref=e62] [cursor=pointer]
+    - button "Tra cứu" [ref=e64] [cursor=pointer]
+    - button "Phản ánh" [ref=e66] [cursor=pointer]
+    - button "Giới thiệu " [ref=e68] [cursor=pointer]:
+      - generic [ref=e69]: Giới thiệu
+      - text: 
+  - region "Bản đồ" [ref=e70]:
+    - heading "Bản đồ"
+    - group [ref=e71]:
+      - combobox [ref=e72]
+      - text: 
+      - button " 12:16:29 Chiều" [ref=e73] [cursor=pointer]:
+        - text: 
+        - generic [ref=e74]: 12:16:29 Chiều
+    - generic [ref=e75]:
+      - img [ref=e77] [cursor=pointer]
+      - generic [ref=e78]:
+        - generic [ref=e79] [cursor=pointer]
+        - generic [ref=e81]:
+          - generic [ref=e82] [cursor=pointer]
+          - generic [ref=e84] [cursor=pointer]
+      - generic [ref=e86]: 1 km
+    - generic [ref=e88] [cursor=pointer]: 
+  - text:                    
+  - button [active] [ref=e90] [cursor=pointer]
+  - generic "light rain - 74 - 1008 -" [ref=e94] [cursor=pointer]: 31°

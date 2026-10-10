@@ -17,6 +17,7 @@ class Camera(Base):
     longitude = Column(Float, nullable=False)
     camera_angle = Column(String(32), default="elevated")  # street_level, elevated, overhead
     stream_url = Column(String(512), nullable=False)
+    video_url = Column(String(512), nullable=True)  # Optional HLS .m3u8 live video stream URL
     zone_id = Column(String(64), ForeignKey("flood_zones.id", ondelete="SET NULL"), nullable=True, index=True)
     status = Column(String(32), default="ONLINE")  # ONLINE, OFFLINE, MAINTENANCE
     failed_polls_count = Column(Integer, default=0)

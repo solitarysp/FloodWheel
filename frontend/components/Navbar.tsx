@@ -1,6 +1,6 @@
 import React from "react";
 import Link from "next/link";
-import { Droplets, Activity, Layers, UploadCloud, Radio } from "lucide-react";
+import { Droplets, Activity, Layers, UploadCloud, Radio, Camera } from "lucide-react";
 
 export const Navbar: React.FC = () => {
   return (
@@ -23,7 +23,11 @@ export const Navbar: React.FC = () => {
             <Layers className="w-4 h-4" />
             <span>Overview</span>
           </Link>
-          <Link href="/demo" className="hover:text-blue-600 transition flex items-center gap-1.5 text-blue-600 font-semibold">
+          <Link href="/cameras" className="hover:text-blue-600 transition flex items-center gap-1.5 text-blue-600 font-semibold">
+            <Camera className="w-4 h-4 text-blue-600" />
+            <span>Live Cameras</span>
+          </Link>
+          <Link href="/demo" className="hover:text-blue-600 transition flex items-center gap-1.5">
             <UploadCloud className="w-4 h-4" />
             <span>Gemini Demo</span>
           </Link>
