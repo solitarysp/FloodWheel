@@ -18,6 +18,9 @@ class Settings(BaseSettings):
     DATABASE_URL: str = "postgresql+asyncpg://postgres:postgres@postgres:5432/floodwheel"
     REDIS_URL: str = "redis://redis:6379/0"
 
+    # Microservices
+    CAMERA_BACKEND_URL: str = "http://camera-backend:8001"
+
     # CORS
     CORS_ORIGINS: Union[List[str], str] = ["http://localhost:3000", "http://127.0.0.1:3000"]
 

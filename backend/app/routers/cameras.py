@@ -11,26 +11,71 @@ from app.models.camera import CameraCreate, CameraResponse
 from app.models.db_models import FloodReadingDB, FloodZone
 from app.models.flood_reading import AnalysisResponse
 from app.services.camera_registry import CameraRegistry
+from app.services.camera_service_client import CameraServiceClient
 from app.services.camera_stream_service import CameraStreamService
 from app.services.flood_reading_parser import FloodReadingParser
 from app.services.gemini_client import GeminiClient
 
 router = APIRouter(prefix="/cameras", tags=["Cameras"])
 gemini_client = GeminiClient()
+camera_service_client = CameraServiceClient()
 
 
 class CameraAnalyzeRequest(BaseModel):
     image_base64: Optional[str] = Field(None, description="Optional base64 JPEG captured directly from live video stream")
 
 
+def _convert_external_camera(raw: dict) -> CameraResponse:
+    """Converts a camera-backend DTO into FloodWheel's CameraResponse model."""
+    status_str = "ONLINE" if str(raw.get("status", "")).upper() == "UP" else "OFFLINE"
+    return CameraResponse(
+        id=str(raw.get("id")),
+        name=str(raw.get("name") or raw.get("id")),
+        location=str(raw.get("district") or raw.get("name") or "TP. Hồ Chí Minh"),
+        latitude=float(raw.get("latitude") or 10.7769),
+        longitude=float(raw.get("longitude") or 106.7009),
+        camera_angle="elevated",
+        stream_url=str(raw.get("snapshot_url") or f"/cameras/{raw.get('id')}/snapshot"),
+        video_url=raw.get("live_video_url"),
+        zone_id=None,
+        status=status_str,
+        failed_polls_count=0,
+        last_polled_at=datetime.now(timezone.utc),
+        created_at=datetime.now(timezone.utc),
+    )
+
+
 @router.get("", response_model=List[CameraResponse])
 async def list_cameras(
     zone_id: Optional[str] = None,
+    city: Optional[str] = Query("hcmc", description="City filter"),
+    district: Optional[str] = Query(None, description="District filter"),
     db: AsyncSession = Depends(get_db),
 ):
-    """Retrieve all registered traffic cameras, optionally filtered by zone."""
-    cameras = await CameraRegistry.get_all(db, zone_id=zone_id)
-    return cameras
+    """Retrieve registered and municipal traffic cameras, optionally filtered by zone or district."""
+    local_cameras = await CameraRegistry.get_all(db, zone_id=zone_id)
+    local_ids = {c.id for c in local_cameras}
+
+    # Query dedicated camera-backend service
+    remote_items = await camera_service_client.list_cameras(
+        city=city or "hcmc",
+        district=district,
+        limit=500,
+    )
+
+    merged: List[CameraResponse] = list(local_cameras)
+    if remote_items:
+        for item in remote_items:
+            cam_id = str(item.get("id"))
+            if cam_id not in local_ids:
+                try:
+                    converted = _convert_external_camera(item)
+                    merged.append(converted)
+                    local_ids.add(cam_id)
+                except Exception:
+                    pass
+
+    return merged
 
 
 @router.get("/{camera_id}", response_model=CameraResponse)
@@ -40,9 +85,15 @@ async def get_camera(
 ):
     """Get metadata and current health status for a specific camera."""
     cam = await CameraRegistry.get_by_id(db, camera_id)
-    if not cam:
-        raise HTTPException(status_code=404, detail=f"Camera with ID '{camera_id}' not found.")
-    return cam
+    if cam:
+        return cam
+
+    # Try camera-backend
+    external = await camera_service_client.get_camera_by_id(camera_id)
+    if external:
+        return _convert_external_camera(external)
+
+    raise HTTPException(status_code=404, detail=f"Camera with ID '{camera_id}' not found.")
 
 
 @router.get("/{camera_id}/snapshot")
@@ -51,16 +102,20 @@ async def get_camera_snapshot(
     t: Optional[int] = Query(None, description="Cache buster timestamp"),
     db: AsyncSession = Depends(get_db),
 ):
-    """Proxies the latest image frame from the camera's stream URL with 5-second caching."""
+    """Proxies the latest image frame from camera-backend or local stream URL."""
     cam = await CameraRegistry.get_by_id(db, camera_id)
-    if not cam:
-        raise HTTPException(status_code=404, detail=f"Camera with ID '{camera_id}' not found.")
-
-    frame_bytes, content_type = await CameraStreamService.get_snapshot_bytes(
-        stream_url=cam.stream_url,
-        camera_id=cam.id,
-        camera_name=cam.name,
-    )
+    if cam:
+        frame_bytes, content_type = await CameraStreamService.get_snapshot_bytes(
+            stream_url=cam.stream_url,
+            camera_id=cam.id,
+            camera_name=cam.name,
+        )
+    else:
+        # Check camera-backend service directly
+        frame_bytes, content_type = await camera_service_client.get_snapshot_bytes(
+            camera_id=camera_id,
+            camera_name=camera_id,
+        )
 
     return Response(
         content=frame_bytes,
@@ -78,12 +133,14 @@ async def analyze_camera_snapshot(
     payload: Optional[CameraAnalyzeRequest] = None,
     db: AsyncSession = Depends(get_db),
 ):
-    """Captures the active camera frame (or uses client video capture) and executes Gemini Vision VLRDR flood depth analysis."""
+    """Captures camera frame and executes Gemini Vision VLRDR flood depth analysis."""
     cam = await CameraRegistry.get_by_id(db, camera_id)
-    if not cam:
-        raise HTTPException(status_code=404, detail=f"Camera with ID '{camera_id}' not found.")
+    camera_name = cam.name if cam else camera_id
+    camera_angle = (cam.camera_angle if cam else None) or "elevated"
+    location_hint = (cam.location if cam else None) or camera_name
+    zone_id = cam.zone_id if cam else None
 
-    # 1. Grab frame: either from client-uploaded frame (canvas capture from live video) or backend proxy
+    # 1. Grab frame: client upload, camera-backend, or local stream
     frame_bytes = None
     if payload and payload.image_base64:
         try:
@@ -95,12 +152,18 @@ async def analyze_camera_snapshot(
             frame_bytes = None
 
     if not frame_bytes or len(frame_bytes) < 100:
-        frame_bytes, _ = await CameraStreamService.get_snapshot_bytes(
-            stream_url=cam.stream_url,
-            camera_id=cam.id,
-            camera_name=cam.name,
-            force_refresh=True,
-        )
+        if cam:
+            frame_bytes, _ = await CameraStreamService.get_snapshot_bytes(
+                stream_url=cam.stream_url,
+                camera_id=cam.id,
+                camera_name=cam.name,
+                force_refresh=True,
+            )
+        else:
+            frame_bytes, _ = await camera_service_client.get_snapshot_bytes(
+                camera_id=camera_id,
+                camera_name=camera_name,
+            )
 
     # 2. Invoke Gemini Vision AI analysis
     raw_text, model_used, elapsed, tokens = await gemini_client.analyze_image_bytes(

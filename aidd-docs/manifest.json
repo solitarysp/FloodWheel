@@ -1,5 +1,5 @@
 {
-  "current_session": "2026-10-10-cam7v9xk",
+  "current_session": "2026-10-10-hcmcam1a",
   "sessions": [
     {
       "id": "2026-09-23-t4mwpuxz",
@@ -24,6 +24,15 @@
       "created_at": "2026-10-10T11:35:30+07:00",
       "project_name": "FloodWheel",
       "description": "Public CCTV camera live viewing, custom camera stream ingestion, and one-click camera snapshot flood depth analysis using Gemini Vision VLRDR",
+      "type": "brownfield",
+      "phase": "construction",
+      "current_stage": "all-phases-completed"
+    },
+    {
+      "id": "2026-10-10-hcmcam1a",
+      "created_at": "2026-10-10T14:35:00+07:00",
+      "project_name": "FloodWheel",
+      "description": "Dedicated Camera Management Backend (camera-backend) service with Ho Chi Minh City traffic camera provider (giaothong.hochiminhcity.gov.vn ~800 cameras) and upstream integration APIs for FloodWheel main backend",
       "type": "brownfield",
       "phase": "construction",
       "current_stage": "all-phases-completed"

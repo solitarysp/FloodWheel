@@ -17,12 +17,35 @@ services:
       - GEMINI_FALLBACK_MODEL=${GEMINI_FALLBACK_MODEL:-gemini-2.5-flash}
       - DATABASE_URL=postgresql+asyncpg://postgres:postgres@postgres:5432/floodwheel
       - REDIS_URL=redis://redis:6379/0
+      - CAMERA_BACKEND_URL=http://camera-backend:8001
       - CORS_ORIGINS=["http://localhost:3000","http://127.0.0.1:3000"]
     volumes:
       - ./backend:/app
     depends_on:
       postgres:
         condition: service_healthy
+      redis:
+        condition: service_healthy
+    networks:
+      - floodwheel-network
+
+  camera-backend:
+    build:
+      context: ./camera-backend
+      dockerfile: Dockerfile
+    container_name: floodwheel-camera-backend
+    restart: unless-stopped
+    ports:
+      - "8001:8001"
+    environment:
+      - ENVIRONMENT=development
+      - LOG_LEVEL=INFO
+      - REDIS_URL=redis://redis:6379/1
+      - PORT=8001
+      - CORS_ORIGINS=["http://localhost:3000","http://127.0.0.1:3000","http://localhost:8000","http://127.0.0.1:8000","http://backend:8000"]
+    volumes:
+      - ./camera-backend:/app
+    depends_on:
       redis:
         condition: service_healthy
     networks:

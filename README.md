@@ -47,9 +47,11 @@
 ## 🛠️ Technology Stack
 
 * **AI & Vision:** Google Gemini Multimodal Vision, VLRDR Depth Reasoning Engine.
-* **Backend:** Python 3.11+, FastAPI, SQLAlchemy, Redis queue, PostGIS / TimescaleDB.
+* **Core Backend:** Python 3.12+, FastAPI (:8000), SQLAlchemy, PostGIS / TimescaleDB.
+* **Camera Management Microservice:** Dedicated FastAPI service (:8001) in `camera-backend/` managing ~800 public traffic surveillance cameras from Ho Chi Minh City (`giaothong.hochiminhcity.gov.vn`), featuring automatic `.VDMS` session cookie renewal, AjaxPro stack parsing, and Redis snapshot caching.
+* **Shared Cache:** Redis 7 Alpine (snapshot cache, session tokens, rate limiting).
 * **Frontend:** Next.js 14, React, Tailwind CSS, Leaflet/MapLibre GIS.
-* **DevOps:** Docker, Docker Compose, automated CI/CD pipeline.
+* **DevOps:** Docker, Docker Compose, automated multi-service orchestration.
 
 ---
 
