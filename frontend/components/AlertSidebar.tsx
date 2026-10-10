@@ -22,10 +22,10 @@ export const AlertSidebar: React.FC<AlertSidebarProps> = ({ alerts, onSelectZone
       <div className="flex items-center justify-between border-b border-slate-700/60 pb-3">
         <div className="flex items-center gap-2 text-rose-400">
           <BellRing className="w-5 h-5 animate-bounce" />
-          <h3 className="font-extrabold text-sm text-white">Cảnh báo Đỏ (Level ≥ 3)</h3>
+          <h3 className="font-extrabold text-sm text-white">Critical Red Alerts (Level ≥ 3)</h3>
         </div>
         <span className="text-[11px] font-bold bg-rose-500/20 text-rose-300 border border-rose-500/30 px-2 py-0.5 rounded-full">
-          {alerts.length} điểm nguy hiểm
+          {alerts.length} critical zones
         </span>
       </div>
 
@@ -55,14 +55,14 @@ export const AlertSidebar: React.FC<AlertSidebarProps> = ({ alerts, onSelectZone
               </div>
 
               <div className="text-[11px] text-amber-300/90 bg-amber-500/10 p-2 rounded-xl flex items-center justify-between">
-                <span>Chìm miệng ống xả xe máy — Chết máy!</span>
+                <span>Motorcycle exhaust submerged — Stalling hazard!</span>
                 <ArrowRight className="w-3.5 h-3.5 opacity-60 group-hover:opacity-100 transition" />
               </div>
             </div>
           ))
         ) : (
           <div className="text-xs text-slate-400 text-center py-6 bg-slate-900/40 rounded-2xl">
-            Không có điểm ngập nguy cấp nào tại TP.HCM.
+            No critical flood emergencies in the metropolitan area.
           </div>
         )}
       </div>

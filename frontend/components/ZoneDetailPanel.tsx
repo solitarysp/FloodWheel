@@ -40,10 +40,10 @@ export const ZoneDetailPanel: React.FC<ZoneDetailPanelProps> = ({
       {/* Main Status Badge */}
       <div className="bg-slate-50 p-4 rounded-2xl border border-slate-200/80 space-y-3">
         <div className="flex items-center justify-between">
-          <span className="text-xs font-semibold text-slate-500">Mức độ cảnh báo VLRDR:</span>
+          <span className="text-xs font-semibold text-slate-500">VLRDR Alert Status:</span>
           {zone.is_overridden && (
             <span className="text-[10px] font-bold bg-amber-100 text-amber-800 px-2 py-0.5 rounded-full border border-amber-300">
-              ⚡ Can thiệp Thủ công
+              ⚡ Manual Override
             </span>
           )}
         </div>
@@ -58,19 +58,19 @@ export const ZoneDetailPanel: React.FC<ZoneDetailPanelProps> = ({
         </div>
 
         <p className="text-xs text-slate-600 leading-relaxed">
-          {level === 0 && "Tuyến đường hoàn toàn khô ráo, các phương tiện di chuyển thông suốt."}
-          {level === 1 && "Vũng nước nhỏ 5–15cm, xe máy và ô tô lưu thông an toàn."}
-          {level === 2 && "Ngập nhẹ 15–30cm quanh mép vỉa hè. Xe máy cần giảm tốc độ."}
-          {level === 3 && "Ngập 30–38cm chìm miệng ống xả xe máy. Xe 2 bánh nguy cơ chết máy cao!"}
-          {level === 4 && "Ngập sâu 45–70cm lút yên xe máy, ngập sàn xe con. Tuyến đường tê liệt!"}
-          {level === 5 && "Khẩn cấp: Ngập trên 70cm. Xe bị cuốn trôi, cấm tuyệt đối mọi phương tiện!"}
+          {level === 0 && "Roadway completely dry, vehicles flowing smoothly."}
+          {level === 1 && "Minor puddles 5–15cm, safe for motorcycles and cars."}
+          {level === 2 && "Moderate water 15–30cm around curbs. Two-wheelers drive with caution."}
+          {level === 3 && "Dangerous flood 30–38cm submerging exhaust tips. Two-wheelers at high risk of stalling!"}
+          {level === 4 && "Severe inundation 45–70cm submerging seats and car sills. Thoroughfare paralyzed!"}
+          {level === 5 && "Emergency: Inundation exceeding 70cm. Vehicles floating, route completely closed!"}
         </p>
       </div>
 
       {/* Operator Actions */}
       <div className="space-y-2">
         <div className="text-xs font-semibold text-slate-500 uppercase tracking-wider">
-          Quyền Điều hành (Operator Controls):
+          Operator Controls:
         </div>
         <div className="flex gap-2">
           <button
@@ -78,14 +78,14 @@ export const ZoneDetailPanel: React.FC<ZoneDetailPanelProps> = ({
             className="flex-1 inline-flex items-center justify-center gap-1.5 px-3 py-2.5 rounded-xl bg-amber-500 hover:bg-amber-600 text-white text-xs font-bold transition shadow-xs"
           >
             <Sliders className="w-3.5 h-3.5" />
-            <span>Ghi đè thủ công</span>
+            <span>Manual Override</span>
           </button>
 
           {zone.is_overridden && (
             <button
               onClick={onRevertOverride}
               className="px-3 py-2.5 rounded-xl border border-slate-300 bg-white hover:bg-slate-50 text-slate-700 text-xs font-semibold transition"
-              title="Khôi phục chế độ AI tự động"
+              title="Restore Automated AI Mode"
             >
               <RefreshCw className="w-3.5 h-3.5" />
             </button>
@@ -97,9 +97,9 @@ export const ZoneDetailPanel: React.FC<ZoneDetailPanelProps> = ({
       <div className="space-y-3">
         <div className="flex items-center justify-between text-xs font-semibold text-slate-500 uppercase tracking-wider">
           <span className="flex items-center gap-1">
-            <History className="w-3.5 h-3.5" /> Lịch sử quét gần nhất
+            <History className="w-3.5 h-3.5" /> Recent CCTV Scan History
           </span>
-          <span>{history?.length || 0} bản ghi</span>
+          <span>{history?.length || 0} readings</span>
         </div>
 
         <div className="space-y-2 max-h-52 overflow-y-auto pr-1">
@@ -124,7 +124,7 @@ export const ZoneDetailPanel: React.FC<ZoneDetailPanelProps> = ({
             ))
           ) : (
             <div className="text-xs text-slate-400 text-center py-4 bg-slate-50 rounded-xl">
-              Chưa có lịch sử quét camera trong 24 giờ qua.
+              No camera scan history recorded in the last 24 hours.
             </div>
           )}
         </div>

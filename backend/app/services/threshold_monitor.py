@@ -31,9 +31,9 @@ class ThresholdMonitor:
         if level >= cls.CRITICAL_THRESHOLD_LEVEL:
             if dedup_guard.should_send(zone.id, level):
                 message = (
-                    f"CẢNH BÁO NGUY HIỂM: {zone.name} ngập Level {level} "
+                    f"CRITICAL FLOOD ALERT: {zone.name} is at Flood Level {level} "
                     f"({new_status.depth_cm_min}-{new_status.depth_cm_max}cm). "
-                    f"Ống xả xe máy đã ngập sâu. Khuyến cáo tránh lưu thông!"
+                    f"Motorcycle exhaust pipes are submerged. Route impassable for two-wheelers!"
                 )
                 alert = Alert(
                     zone_id=zone.id,
@@ -77,7 +77,7 @@ class ThresholdMonitor:
                     "event": "FLOOD_ALERT_RESOLVED",
                     "zone_id": zone.id,
                     "zone_name": zone.name,
-                    "message": f"{zone.name} đã rút nước (Level {level}). Tuyến đường an toàn.",
+                    "message": f"{zone.name} floodwaters receded (Level {level}). Route is now safe.",
                     "timestamp": now.isoformat(),
                 })
                 logger.info(f"Resolved active alerts for zone {zone.id}")

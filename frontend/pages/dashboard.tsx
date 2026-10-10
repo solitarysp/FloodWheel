@@ -69,13 +69,13 @@ export default function DashboardPage() {
       if (resp.ok) {
         const data = await resp.json();
         setPollResultNote(
-          `Đã quét ${data.result?.cameras_polled || 5} camera CCTV. Điều kiện: ${data.result?.weather_condition || "Bình thường"}`
+          `Polled ${data.result?.cameras_polled || 5} CCTV cameras. Weather condition: ${data.result?.weather_condition || "Moderate Rain"}`
         );
         await fetchHeatmap();
         if (selectedZoneId) await fetchZoneDetail(selectedZoneId);
       }
     } catch (err: any) {
-      setPollResultNote("Lỗi khi kích hoạt chu kỳ quét camera.");
+      setPollResultNote("Failed to trigger camera polling cycle.");
     } finally {
       setIsPolling(false);
     }
@@ -99,7 +99,7 @@ export default function DashboardPage() {
   return (
     <div className="min-h-screen bg-slate-900 text-slate-100 flex flex-col font-sans">
       <Head>
-        <title>Trung tâm Giám sát Thoát nước — FloodWheel Operator Dashboard</title>
+        <title>Flood Monitoring Command Center — FloodWheel Operator Dashboard</title>
       </Head>
 
       <Navbar />
@@ -109,7 +109,7 @@ export default function DashboardPage() {
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
           <div className="bg-slate-800/80 p-4 rounded-2xl border border-slate-700/60 flex items-center justify-between">
             <div>
-              <div className="text-xs font-semibold text-slate-400">Điểm nóng ngập úng</div>
+              <div className="text-xs font-semibold text-slate-400">Flood Inundation Hotspots</div>
               <div className="text-2xl font-black text-rose-400 mt-0.5">{severeCount} / {totalZones}</div>
             </div>
             <div className="w-10 h-10 rounded-xl bg-rose-500/20 text-rose-400 flex items-center justify-center">
@@ -119,7 +119,7 @@ export default function DashboardPage() {
 
           <div className="bg-slate-800/80 p-4 rounded-2xl border border-slate-700/60 flex items-center justify-between">
             <div>
-              <div className="text-xs font-semibold text-slate-400">Camera CCTV trực tuyến</div>
+              <div className="text-xs font-semibold text-slate-400">Online CCTV Cameras</div>
               <div className="text-2xl font-black text-emerald-400 mt-0.5">5 / 5</div>
             </div>
             <div className="w-10 h-10 rounded-xl bg-emerald-500/20 text-emerald-400 flex items-center justify-center">
@@ -129,8 +129,8 @@ export default function DashboardPage() {
 
           <div className="bg-slate-800/80 p-4 rounded-2xl border border-slate-700/60 flex items-center justify-between">
             <div>
-              <div className="text-xs font-semibold text-slate-400">Thời tiết TP.HCM (Open-Meteo)</div>
-              <div className="text-sm font-bold text-sky-300 mt-1 truncate">Mưa vừa (60s cycle)</div>
+              <div className="text-xs font-semibold text-slate-400">Metropolitan Weather (Open-Meteo)</div>
+              <div className="text-sm font-bold text-sky-300 mt-1 truncate">Moderate Rain (60s cycle)</div>
             </div>
             <div className="w-10 h-10 rounded-xl bg-sky-500/20 text-sky-400 flex items-center justify-center">
               <CloudRain className="w-5 h-5" />
@@ -144,7 +144,7 @@ export default function DashboardPage() {
               className="w-full h-full flex items-center justify-center gap-2 bg-blue-600 hover:bg-blue-500 disabled:bg-slate-700 text-white font-bold text-xs py-2.5 px-4 rounded-xl transition shadow-md shadow-blue-500/20"
             >
               <RefreshCw className={`w-4 h-4 ${isPolling ? "animate-spin" : ""}`} />
-              <span>{isPolling ? "AI đang quét camera..." : "Quét camera ngay"}</span>
+              <span>{isPolling ? "AI scanning cameras..." : "Poll Cameras Now"}</span>
             </button>
           </div>
         </div>
@@ -199,7 +199,7 @@ export default function DashboardPage() {
             ) : (
               <div className="bg-slate-800/50 rounded-3xl border border-slate-800 p-8 text-center text-slate-400 flex flex-col items-center justify-center space-y-3">
                 <Radio className="w-8 h-8 text-slate-600 animate-pulse" />
-                <p className="text-xs">Nhấp vào một điểm ngập trên bản đồ để xem chi tiết và lịch sử camera.</p>
+                <p className="text-xs">Click a flood zone node on the map to inspect telemetry and CCTV camera readings.</p>
               </div>
             )}
           </div>

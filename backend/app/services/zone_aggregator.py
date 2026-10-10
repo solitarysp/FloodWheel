@@ -101,6 +101,6 @@ class ZoneAggregator:
             is_flooded=final_level >= 2,
             is_overridden=zone.is_overridden,
             cameras_reporting=len(recent_readings),
-            active_alerts=[f"Cảnh báo ngập {final_min}-{final_max}cm"] if final_level >= 3 else [],
+            active_alerts=[f"Flood Alert: {final_min}-{final_max}cm"] if final_level >= 3 else [],
             last_updated=now,
         )

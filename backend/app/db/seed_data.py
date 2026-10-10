@@ -11,8 +11,8 @@ logger = logging.getLogger(__name__)
 SAMPLE_ZONES = [
     {
         "id": "zone-nguyen-huu-canh",
-        "name": "Đoạn đường Nguyễn Hữu Cảnh (Chân cầu Thủ Thiêm - The Manor)",
-        "district": "Bình Thạnh",
+        "name": "Nguyen Huu Canh Corridor (Thu Thiem Bridge - The Manor)",
+        "district": "Binh Thanh",
         "city": "hcmc",
         "center_lat": 10.7938,
         "center_lng": 106.7196,
@@ -32,8 +32,8 @@ SAMPLE_ZONES = [
     },
     {
         "id": "zone-vo-van-ngan",
-        "name": "Đoạn dốc Võ Văn Ngân (Chợ Thủ Đức)",
-        "district": "TP. Thủ Đức",
+        "name": "Vo Van Ngan Incline (Thu Duc Market)",
+        "district": "Thu Duc City",
         "city": "hcmc",
         "center_lat": 10.8512,
         "center_lng": 106.7580,
@@ -53,8 +53,8 @@ SAMPLE_ZONES = [
     },
     {
         "id": "zone-quoc-huong",
-        "name": "Đường Quốc Hương (Thảo Điền)",
-        "district": "TP. Thủ Đức",
+        "name": "Quoc Huong Street (Thao Dien)",
+        "district": "Thu Duc City",
         "city": "hcmc",
         "center_lat": 10.8062,
         "center_lng": 106.7325,
@@ -74,8 +74,8 @@ SAMPLE_ZONES = [
     },
     {
         "id": "zone-le-loi",
-        "name": "Đại lộ Lê Lợi - Chợ Bến Thành",
-        "district": "Quận 1",
+        "name": "Le Loi Boulevard - Ben Thanh Market",
+        "district": "District 1",
         "city": "hcmc",
         "center_lat": 10.7725,
         "center_lng": 106.6985,
@@ -98,8 +98,8 @@ SAMPLE_ZONES = [
 SAMPLE_CAMERAS = [
     {
         "id": "cam-nhc-01",
-        "name": "CCTV 042: Cầu vượt Nguyễn Hữu Cảnh",
-        "location": "Nguyễn Hữu Cảnh, P. 22, Bình Thạnh",
+        "name": "CCTV 042: Nguyen Huu Canh Flyover",
+        "location": "Nguyen Huu Canh, Ward 22, Binh Thanh",
         "latitude": 10.7935,
         "longitude": 106.7192,
         "camera_angle": "elevated",
@@ -109,8 +109,8 @@ SAMPLE_CAMERAS = [
     },
     {
         "id": "cam-nhc-02",
-        "name": "CCTV 043: Nguyễn Hữu Cảnh & The Manor",
-        "location": "Nguyễn Hữu Cảnh & Ngô Tất Tố, Bình Thạnh",
+        "name": "CCTV 043: Nguyen Huu Canh & The Manor",
+        "location": "Nguyen Huu Canh & Ngo Tat To, Binh Thanh",
         "latitude": 10.7942,
         "longitude": 106.7201,
         "camera_angle": "elevated",
@@ -120,8 +120,8 @@ SAMPLE_CAMERAS = [
     },
     {
         "id": "cam-vvn-01",
-        "name": "CCTV 108: Ngã ba Võ Văn Ngân & Đặng Văn Bi",
-        "location": "Võ Văn Ngân, Trường Thọ, TP. Thủ Đức",
+        "name": "CCTV 108: Vo Van Ngan & Dang Van Bi Junction",
+        "location": "Vo Van Ngan, Truong Tho, Thu Duc City",
         "latitude": 10.8510,
         "longitude": 106.7582,
         "camera_angle": "street_level",
@@ -131,8 +131,8 @@ SAMPLE_CAMERAS = [
     },
     {
         "id": "cam-qh-01",
-        "name": "CCTV 215: Quốc Hương & Xuân Thủy",
-        "location": "Quốc Hương, Thảo Điền, TP. Thủ Đức",
+        "name": "CCTV 215: Quoc Huong & Xuan Thuy Intersection",
+        "location": "Quoc Huong, Thao Dien, Thu Duc City",
         "latitude": 10.8065,
         "longitude": 106.7328,
         "camera_angle": "elevated",
@@ -142,8 +142,8 @@ SAMPLE_CAMERAS = [
     },
     {
         "id": "cam-ll-01",
-        "name": "CCTV 001: Lê Lợi & Pasteur",
-        "location": "Lê Lợi, Bến Nghé, Quận 1",
+        "name": "CCTV 001: Le Loi Boulevard & Pasteur",
+        "location": "Le Loi, Ben Nghe, District 1",
         "latitude": 10.7728,
         "longitude": 106.6988,
         "camera_angle": "overhead",

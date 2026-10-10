@@ -41,8 +41,8 @@ class WeatherClient:
         rainfall = await cls.get_rainfall_rate(lat, lng)
 
         if rainfall > 10.0:
-            return 30, f"Mưa rất to ({rainfall} mm/h) — Tần suất quét khẩn cấp 30s"
+            return 30, f"Heavy Torrential Rain ({rainfall} mm/h) — Emergency 30s Polling Cycle"
         elif rainfall > 2.0:
-            return 60, f"Mưa vừa ({rainfall} mm/h) — Tần suất quét 60s"
+            return 60, f"Moderate Rain ({rainfall} mm/h) — Standard 60s Polling Cycle"
         else:
-            return 300, f"Trời tạnh / mưa nhỏ ({rainfall} mm/h) — Tần suất quét tiết kiệm 300s"
+            return 300, f"Dry / Light Drizzle ({rainfall} mm/h) — Eco 300s Polling Cycle"

@@ -57,11 +57,11 @@ class RouteScorer:
 
         is_recommended = is_safe_for_motorcycle if vehicle_type == "motorcycle" else is_safe_for_car
 
-        detour_note = "Lộ trình an toàn, không có điểm ngập sâu."
+        detour_note = "Safe route: no severe flood zones detected along your path."
         if not is_recommended:
             detour_note = (
-                f"CẢNH BÁO: Lộ trình đi qua điểm ngập Level {worst_level} (ngập tới {max_depth_cm}cm). "
-                f"Khuyến nghị tài xế chuyển hướng vòng qua các tuyến đường cao ráo hơn."
+                f"WARNING: Route crosses Flood Level {worst_level} (water depth up to {max_depth_cm}cm). "
+                f"High risk of vehicle damage. Detour via higher elevation corridors strongly recommended."
             )
 
         return {

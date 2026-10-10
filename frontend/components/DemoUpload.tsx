@@ -17,7 +17,7 @@ export const DemoUpload: React.FC<DemoUploadProps> = ({
   const [selectedFiles, setSelectedFiles] = useState<File[]>([]);
   const [previews, setPreviews] = useState<string[]>([]);
   const [cameraAngle, setCameraAngle] = useState<string>("elevated");
-  const [locationHint, setLocationHint] = useState<string>("Đường Nguyễn Hữu Cảnh, Bình Thạnh, TP.HCM");
+  const [locationHint, setLocationHint] = useState<string>("Nguyen Huu Canh Corridor, Binh Thanh, HCMC");
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [isGalleryOpen, setIsGalleryOpen] = useState<boolean>(false);
   const [galleryTab, setGalleryTab] = useState<"flooded" | "non-flooded">("flooded");
@@ -34,11 +34,11 @@ export const DemoUpload: React.FC<DemoUploadProps> = ({
     for (let i = 0; i < Math.min(files.length, 5); i++) {
       const file = files[i];
       if (!allowedTypes.includes(file.type)) {
-        setErrorMessage(`File ${file.name} không phải ảnh hợp lệ (chỉ nhận JPG, PNG, WebP)`);
+        setErrorMessage(`File ${file.name} is not a valid image (JPG, PNG, WebP only)`);
         return;
       }
       if (file.size > 10 * 1024 * 1024) {
-        setErrorMessage(`File ${file.name} vượt quá dung lượng 10MB`);
+        setErrorMessage(`File ${file.name} exceeds 10MB size limit`);
         return;
       }
       validFiles.push(file);
@@ -57,7 +57,7 @@ export const DemoUpload: React.FC<DemoUploadProps> = ({
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (selectedFiles.length === 0) {
-      setErrorMessage("Vui lòng chọn ít nhất 1 ảnh để phân tích.");
+      setErrorMessage("Please select at least 1 image to analyze.");
       return;
     }
 
@@ -87,7 +87,7 @@ export const DemoUpload: React.FC<DemoUploadProps> = ({
       const fileNames = selectedFiles.map((f) => f.name);
       onAnalyzeComplete(results, previews, fileNames);
     } catch (err: any) {
-      setErrorMessage(err.message || "Không thể kết nối đến AI Backend. Hãy đảm bảo backend đang chạy.");
+      setErrorMessage(err.message || "Unable to connect to AI Backend. Ensure the backend service is running.");
     } finally {
       setIsLoading(false);
     }
@@ -171,10 +171,10 @@ export const DemoUpload: React.FC<DemoUploadProps> = ({
             </div>
             <div>
               <p className="text-base font-semibold text-slate-800">
-                Kéo thả ảnh camera CCTV vào đây, hoặc <span className="text-blue-600 underline">chọn tệp</span>
+                Drag and drop CCTV camera images here, or <span className="text-blue-600 underline">browse files</span>
               </p>
               <p className="text-xs text-slate-500 mt-1">
-                Hỗ trợ JPG, PNG, WebP tối đa 5 ảnh (mỗi ảnh ≤ 10MB)
+                Supports JPG, PNG, WebP up to 5 images (each ≤ 10MB)
               </p>
             </div>
           </div>
@@ -184,7 +184,7 @@ export const DemoUpload: React.FC<DemoUploadProps> = ({
         {previews.length > 0 && (
           <div className="space-y-2">
             <div className="flex items-center justify-between text-xs font-semibold text-slate-600">
-              <span>Đã chọn {previews.length} ảnh:</span>
+              <span>Selected {previews.length} image{previews.length > 1 ? "s" : ""}:</span>
               <button
                 type="button"
                 onClick={() => {
@@ -193,7 +193,7 @@ export const DemoUpload: React.FC<DemoUploadProps> = ({
                 }}
                 className="text-rose-600 hover:underline"
               >
-                Xóa tất cả
+                Clear all
               </button>
             </div>
             <div className="flex flex-wrap gap-3">
@@ -213,28 +213,28 @@ export const DemoUpload: React.FC<DemoUploadProps> = ({
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
           <div>
             <label className="block text-xs font-semibold text-slate-700 uppercase tracking-wider mb-1.5">
-              Góc đặt Camera (Camera Angle)
+              Camera Perspective / Angle
             </label>
             <select
               value={cameraAngle}
               onChange={(e) => setCameraAngle(e.target.value)}
               className="w-full rounded-xl border border-slate-300 px-3.5 py-2.5 text-sm font-medium text-slate-800 focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white"
             >
-              <option value="elevated">Elevated (Cột đèn / đèn tín hiệu cao 4–6m - Mặc định)</option>
-              <option value="street_level">Street Level (Ngang tầm mắt người / 1.5–2.5m)</option>
-              <option value="overhead">Overhead (Cầu vượt bộ hành / tòa nhà cao &gt;8m)</option>
+              <option value="elevated">Elevated (Pole / Mast mounted 4–6m - Default)</option>
+              <option value="street_level">Street Level (Eye level / 1.5–2.5m)</option>
+              <option value="overhead">Overhead (Pedestrian flyover / overpass &gt;8m)</option>
             </select>
           </div>
 
           <div>
             <label className="block text-xs font-semibold text-slate-700 uppercase tracking-wider mb-1.5">
-              Tên vị trí / Tuyến đường (Gợi ý ngữ cảnh)
+              Location Context / Street Corridor Hint
             </label>
             <input
               type="text"
               value={locationHint}
               onChange={(e) => setLocationHint(e.target.value)}
-              placeholder="VD: Đường Nguyễn Hữu Cảnh, TP.HCM"
+              placeholder="e.g. Nguyen Huu Canh Corridor, HCMC"
               className="w-full rounded-xl border border-slate-300 px-3.5 py-2.5 text-sm font-medium text-slate-800 focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white"
             />
           </div>
@@ -257,7 +257,7 @@ export const DemoUpload: React.FC<DemoUploadProps> = ({
               className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl border border-blue-300 bg-blue-50 hover:bg-blue-100 text-blue-700 text-sm font-bold transition shadow-xs"
             >
               <FolderSearch className="w-4 h-4 text-blue-600" />
-              <span>Kho 20 Ảnh Benchmark (Dataset)</span>
+              <span>20 Real Benchmark Images (Dataset)</span>
             </button>
 
             <button
@@ -266,7 +266,7 @@ export const DemoUpload: React.FC<DemoUploadProps> = ({
               className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl border border-slate-300 bg-slate-50 hover:bg-slate-100 text-slate-700 text-sm font-semibold transition"
             >
               <Sparkles className="w-4 h-4 text-amber-500" />
-              <span>Nạp nhanh (Quick Load)</span>
+              <span>Quick Load Preset</span>
             </button>
           </div>
 
@@ -278,12 +278,12 @@ export const DemoUpload: React.FC<DemoUploadProps> = ({
             {isLoading ? (
               <>
                 <RefreshCw className="w-4 h-4 animate-spin" />
-                <span>AI đang quét mốc thước đo...</span>
+                <span>AI scanning physical landmarks...</span>
               </>
             ) : (
               <>
                 <ImageIcon className="w-4 h-4" />
-                <span>Phân tích độ sâu ngập (Gemini VLRDR)</span>
+                <span>Analyze Flood Depth (Gemini VLRDR)</span>
               </>
             )}
           </button>
@@ -303,10 +303,10 @@ export const DemoUpload: React.FC<DemoUploadProps> = ({
 
             <div className="mb-4">
               <h3 className="text-xl font-bold text-slate-900">
-                Kho 20 Ảnh Benchmark Thực tế (Đô thị Việt Nam & Ngập lụt)
+                20 Real-World Benchmark Scenarios (Urban Streets & Flooding)
               </h3>
               <p className="text-xs text-slate-500 mt-0.5">
-                Chọn bất kỳ ảnh nào để nạp và kiểm tra khả năng suy luận thước đo VLRDR của Gemini
+                Select any benchmark image to evaluate Gemini's VLRDR landmark relative depth reasoning
               </p>
 
               {/* Tabs */}
@@ -321,7 +321,7 @@ export const DemoUpload: React.FC<DemoUploadProps> = ({
                   }`}
                 >
                   <ShieldAlert className="w-4 h-4" />
-                  <span>10 Ảnh Có Ngập Lụt (Level 2–4)</span>
+                  <span>10 Inundated Scenarios (Levels 2–4)</span>
                 </button>
 
                 <button
@@ -334,7 +334,7 @@ export const DemoUpload: React.FC<DemoUploadProps> = ({
                   }`}
                 >
                   <CheckCircle2 className="w-4 h-4" />
-                  <span>10 Ảnh Không Ngập (Level 0)</span>
+                  <span>10 Dry Street Scenarios (Level 0)</span>
                 </button>
               </div>
             </div>
@@ -374,11 +374,11 @@ export const DemoUpload: React.FC<DemoUploadProps> = ({
                     <p className="text-[11px] text-slate-500">{item.location}</p>
                     <div className="text-[11px] font-semibold text-slate-700">
                       {item.depth_level > 0
-                        ? `Ước tính: ${item.depth_cm_min}–${item.depth_cm_max} cm`
-                        : "Khô ráo (0 cm)"}
+                        ? `Est: ${item.depth_cm_min}–${item.depth_cm_max} cm`
+                        : "Dry Road (0 cm)"}
                     </div>
                     <div className="text-[10px] text-slate-400 truncate">
-                      Mốc: {item.landmarks.join(", ")}
+                      Landmarks: {item.landmarks.join(", ")}
                     </div>
                   </div>
                 </div>
@@ -386,13 +386,13 @@ export const DemoUpload: React.FC<DemoUploadProps> = ({
             </div>
 
             <div className="mt-4 pt-3 border-t border-slate-200 flex justify-between items-center text-xs text-slate-500">
-              <span>Nguồn: Wikimedia Commons (Creative Commons Attribution)</span>
+              <span>Source: Curated Urban Traffic Imagery (Creative Commons Attribution)</span>
               <button
                 type="button"
                 onClick={() => setIsGalleryOpen(false)}
                 className="px-4 py-2 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 font-semibold"
               >
-                Đóng
+                Close
               </button>
             </div>
           </div>

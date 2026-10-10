@@ -21,11 +21,11 @@ export const Navbar: React.FC = () => {
         <nav className="flex items-center space-x-6 text-sm font-medium text-slate-600">
           <Link href="/" className="hover:text-blue-600 transition flex items-center gap-1.5">
             <Layers className="w-4 h-4" />
-            <span>Tổng quan</span>
+            <span>Overview</span>
           </Link>
           <Link href="/demo" className="hover:text-blue-600 transition flex items-center gap-1.5 text-blue-600 font-semibold">
             <UploadCloud className="w-4 h-4" />
-            <span>Live Demo</span>
+            <span>Gemini Demo</span>
           </Link>
           <Link href="/dashboard" className="hover:text-blue-600 transition flex items-center gap-1.5">
             <Radio className="w-4 h-4 text-emerald-500" />

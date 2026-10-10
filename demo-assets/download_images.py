@@ -20,14 +20,14 @@ def download_all():
     with open(DATASET_FILE, "r", encoding="utf-8") as f:
         catalog = json.load(f)
 
-    print(f"Bắt đầu tải {len(catalog)} ảnh benchmark (10 ảnh ngập lụt + 10 ảnh khô ráo)...")
+    print(f"Starting download of {len(catalog)} benchmark images (10 flooded + 10 dry scenarios)...")
 
     success_count = 0
     for idx, item in enumerate(catalog, 1):
         filename = f"{item['id']}_{item['category']}.jpg"
         target_path = os.path.join(OUTPUT_DIR, filename)
 
-        print(f"[{idx}/{len(catalog)}] Đang tải: {item['title']} -> {filename}...")
+        print(f"[{idx}/{len(catalog)}] Downloading: {item['title']} -> {filename}...")
 
         try:
             req = urllib.request.Request(item["image_url"], headers=HEADERS)
@@ -35,12 +35,12 @@ def download_all():
                 content = resp.read()
                 out.write(content)
             size_kb = os.path.getsize(target_path) / 1024
-            print(f"  ✓ Đã lưu thành công: {target_path} ({size_kb:.1f} KB)")
+            print(f"  ✓ Saved successfully: {target_path} ({size_kb:.1f} KB)")
             success_count += 1
         except Exception as e:
-            print(f"  ✗ Lỗi khi tải ảnh {item['id']}: {e}")
+            print(f"  ✗ Error downloading {item['id']}: {e}")
 
-    print(f"\nHoàn tất! Đã tải thành công {success_count}/{len(catalog)} ảnh vào thư mục: {OUTPUT_DIR}")
+    print(f"\nComplete! Successfully downloaded {success_count}/{len(catalog)} images into: {OUTPUT_DIR}")
 
 
 if __name__ == "__main__":

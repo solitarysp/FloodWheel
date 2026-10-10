@@ -48,7 +48,7 @@ export const FloodMap: React.FC<FloodMapProps> = ({
       {/* Map Control Header */}
       <div className="absolute top-4 left-4 z-20 flex items-center gap-2 bg-slate-900/90 backdrop-blur-md px-3.5 py-2 rounded-2xl border border-slate-700/60 text-xs text-white shadow-lg">
         <span className="w-2.5 h-2.5 rounded-full bg-emerald-400 animate-pulse" />
-        <span className="font-bold tracking-wide">Bản đồ Ngập lụt Đô thị Real-time — TP. Hồ Chí Minh</span>
+        <span className="font-bold tracking-wide">Real-time Urban Flood Map — Ho Chi Minh City</span>
       </div>
 
       {/* Map Zoom Controls */}
@@ -56,21 +56,21 @@ export const FloodMap: React.FC<FloodMapProps> = ({
         <button
           onClick={() => setZoomLevel((z) => Math.min(z + 0.2, 1.8))}
           className="w-8 h-8 rounded-xl bg-slate-800 hover:bg-slate-700 flex items-center justify-center font-bold text-sm"
-          title="Phóng to"
+          title="Zoom In"
         >
           +
         </button>
         <button
           onClick={() => setZoomLevel((z) => Math.max(z - 0.2, 0.8))}
           className="w-8 h-8 rounded-xl bg-slate-800 hover:bg-slate-700 flex items-center justify-center font-bold text-sm"
-          title="Thu nhỏ"
+          title="Zoom Out"
         >
           -
         </button>
         <button
           onClick={() => setZoomLevel(1)}
           className="w-8 h-8 rounded-xl bg-slate-800 hover:bg-slate-700 flex items-center justify-center text-xs"
-          title="Đặt lại góc nhìn"
+          title="Reset View"
         >
           ↺
         </button>
@@ -112,9 +112,9 @@ export const FloodMap: React.FC<FloodMapProps> = ({
           </g>
 
           {/* District Labels */}
-          <text x="240" y="380" fill="#64748b" fontSize="13" fontWeight="bold">QUẬN 1</text>
-          <text x="440" y="240" fill="#64748b" fontSize="13" fontWeight="bold">BÌNH THẠNH</text>
-          <text x="650" y="210" fill="#64748b" fontSize="13" fontWeight="bold">TP. THỦ ĐỨC</text>
+          <text x="240" y="380" fill="#64748b" fontSize="13" fontWeight="bold">DISTRICT 1</text>
+          <text x="440" y="240" fill="#64748b" fontSize="13" fontWeight="bold">BINH THANH</text>
+          <text x="650" y="210" fill="#64748b" fontSize="13" fontWeight="bold">THU DUC CITY</text>
 
           {/* Flood Zones Polygons & Nodes */}
           {features.map((feat, idx) => {
@@ -175,7 +175,7 @@ export const FloodMap: React.FC<FloodMapProps> = ({
                   fontSize="9"
                   fontWeight="600"
                 >
-                  {props.depth_cm_max > 0 ? `${props.depth_cm_max}cm` : "Khô"}
+                  {props.depth_cm_max > 0 ? `${props.depth_cm_max}cm` : "Dry"}
                 </text>
 
                 {/* Zone Label Tooltip */}
@@ -211,7 +211,7 @@ export const FloodMap: React.FC<FloodMapProps> = ({
       {/* Legend Bar */}
       <div className="absolute bottom-4 left-4 right-4 z-20 bg-slate-900/90 backdrop-blur-md p-3.5 rounded-2xl border border-slate-700/60 flex flex-wrap items-center justify-between gap-4 text-xs text-slate-300 shadow-xl">
         <div className="flex items-center gap-2">
-          <span className="font-semibold text-white">Thang độ sâu VLRDR:</span>
+          <span className="font-semibold text-white">VLRDR Depth Scale:</span>
           <div className="flex items-center gap-1.5">
             <span className="px-2 py-0.5 rounded bg-emerald-500/20 text-emerald-300 font-bold border border-emerald-500/40">
               L0 (0cm)
@@ -235,7 +235,7 @@ export const FloodMap: React.FC<FloodMapProps> = ({
         </div>
 
         <div className="flex items-center gap-3 text-slate-400">
-          <span>* Nhấp vào điểm tròn để xem chi tiết & điều khiển can thiệp (Override)</span>
+          <span>* Click any zone node to view telemetry & manual override controls</span>
         </div>
       </div>
     </div>

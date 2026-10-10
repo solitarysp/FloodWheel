@@ -22,7 +22,7 @@ export const OverrideDialog: React.FC<OverrideDialogProps> = ({
   const [cmMin, setCmMin] = useState<number>(30);
   const [cmMax, setCmMax] = useState<number>(45);
   const [durationHours, setDurationHours] = useState<number>(2);
-  const [reason, setReason] = useState<string>("Báo cáo thực địa từ đội tuần tra thoát nước đô thị");
+  const [reason, setReason] = useState<string>("Field inspection report from municipal flood response team");
   const [isSubmitting, setIsSubmitting] = useState<boolean>(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -49,13 +49,13 @@ export const OverrideDialog: React.FC<OverrideDialogProps> = ({
       });
 
       if (!resp.ok) {
-        throw new Error("Không thể cập nhật can thiệp thủ công.");
+        throw new Error("Unable to update manual override.");
       }
 
       onSuccess();
       onClose();
     } catch (err: any) {
-      setError(err.message || "Lỗi kết nối.");
+      setError(err.message || "Connection error.");
     } finally {
       setIsSubmitting(false);
     }
@@ -73,34 +73,34 @@ export const OverrideDialog: React.FC<OverrideDialogProps> = ({
 
         <div className="flex items-center gap-2.5 text-amber-600 mb-2">
           <ShieldAlert className="w-6 h-6" />
-          <h3 className="text-lg font-bold text-slate-900">Can thiệp Điều hành Thủ công (Override)</h3>
+          <h3 className="text-lg font-bold text-slate-900">Manual Operator Override</h3>
         </div>
         <p className="text-xs text-slate-500 mb-6">
-          Khu vực: <span className="font-semibold text-slate-800">{zoneName}</span>
+          Zone: <span className="font-semibold text-slate-800">{zoneName}</span>
         </p>
 
         <form onSubmit={handleSubmit} className="space-y-4">
           <div>
             <label className="block text-xs font-semibold text-slate-700 uppercase tracking-wider mb-1">
-              Mức độ ngập ghi đè (0 – 5)
+              Override Depth Level (0 – 5)
             </label>
             <select
               value={level}
               onChange={(e) => setLevel(Number(e.target.value))}
               className="w-full rounded-xl border border-slate-300 px-3.5 py-2 text-sm font-semibold text-slate-800 bg-white"
             >
-              <option value={0}>Level 0: Khô ráo (0cm)</option>
-              <option value={1}>Level 1: Vũng nước nhỏ (5-15cm)</option>
-              <option value={2}>Level 2: Chú ý (15-30cm)</option>
-              <option value={3}>Level 3: Nguy hiểm — Chìm ống xả (30-45cm)</option>
-              <option value={4}>Level 4: Ngập sâu — Chìm yên xe (45-70cm)</option>
-              <option value={5}>Level 5: Khẩn cấp — Ngập lút (&gt;70cm)</option>
+              <option value={0}>Level 0: Dry (0cm)</option>
+              <option value={1}>Level 1: Minor Pooling (5-15cm)</option>
+              <option value={2}>Level 2: Caution (15-30cm)</option>
+              <option value={3}>Level 3: Danger — Exhaust Submerged (30-45cm)</option>
+              <option value={4}>Level 4: Severe — Sills/Seats Submerged (45-70cm)</option>
+              <option value={5}>Level 5: Catastrophic — Deep Inundation (&gt;70cm)</option>
             </select>
           </div>
 
           <div className="grid grid-cols-2 gap-3">
             <div>
-              <label className="block text-xs font-semibold text-slate-700 mb-1">Độ sâu min (cm)</label>
+              <label className="block text-xs font-semibold text-slate-700 mb-1">Min Depth (cm)</label>
               <input
                 type="number"
                 value={cmMin}
@@ -109,7 +109,7 @@ export const OverrideDialog: React.FC<OverrideDialogProps> = ({
               />
             </div>
             <div>
-              <label className="block text-xs font-semibold text-slate-700 mb-1">Độ sâu max (cm)</label>
+              <label className="block text-xs font-semibold text-slate-700 mb-1">Max Depth (cm)</label>
               <input
                 type="number"
                 value={cmMax}
@@ -120,7 +120,7 @@ export const OverrideDialog: React.FC<OverrideDialogProps> = ({
           </div>
 
           <div>
-            <label className="block text-xs font-semibold text-slate-700 mb-1">Thời gian hiệu lực (Giờ)</label>
+            <label className="block text-xs font-semibold text-slate-700 mb-1">Duration of Validity (Hours)</label>
             <input
               type="number"
               min={1}
@@ -132,7 +132,7 @@ export const OverrideDialog: React.FC<OverrideDialogProps> = ({
           </div>
 
           <div>
-            <label className="block text-xs font-semibold text-slate-700 mb-1">Lý do can thiệp</label>
+            <label className="block text-xs font-semibold text-slate-700 mb-1">Operator Justification / Reason</label>
             <textarea
               rows={2}
               value={reason}
@@ -150,14 +150,14 @@ export const OverrideDialog: React.FC<OverrideDialogProps> = ({
               onClick={onClose}
               className="px-4 py-2 rounded-xl text-slate-600 hover:bg-slate-100 text-sm font-medium"
             >
-              Hủy
+              Cancel
             </button>
             <button
               type="submit"
               disabled={isSubmitting}
               className="px-5 py-2 rounded-xl bg-blue-600 hover:bg-blue-700 text-white text-sm font-bold shadow-md shadow-blue-500/20"
             >
-              {isSubmitting ? "Đang lưu..." : "Xác nhận Can thiệp"}
+              {isSubmitting ? "Saving..." : "Apply Override"}
             </button>
           </div>
         </form>

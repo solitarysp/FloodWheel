@@ -40,22 +40,22 @@ export default function DemoPage() {
               <span>3-Minute Live Hackathon Demo</span>
             </div>
             <h1 className="text-3xl sm:text-4xl font-extrabold tracking-tight">
-              Đo độ sâu ngập lụt qua mắt thần Gemini
+              Gemini Vision AI Depth Estimator Playground
             </h1>
             <p className="text-slate-300 text-sm sm:text-base leading-relaxed">
-              Không cần cảm biến vật lý đắt đỏ dưới cống. AI sử dụng các mốc vật thể quen thuộc
-              (bánh xe máy ~50cm, miệng ống xả ~35cm, bậc vỉa hè ~15cm) để tự động tính toán độ sâu ngập theo thời gian thực.
+              Zero expensive submerged sewer sensors required. Gemini uses everyday physical landmarks
+              (motorcycle wheels ~50cm, exhaust pipes ~35cm, sidewalk curbs ~15cm) to calculate real-time flood depth.
             </p>
 
             <div className="flex flex-wrap gap-4 pt-2 text-xs font-medium text-slate-300">
               <span className="flex items-center gap-1">
-                <Zap className="w-4 h-4 text-amber-400" /> Tốc độ phản hồi &lt; 1 giây
+                <Zap className="w-4 h-4 text-amber-400" /> Sub-second latency (&lt; 1s)
               </span>
               <span className="flex items-center gap-1">
-                <Activity className="w-4 h-4 text-blue-400" /> Chuẩn JSON FloodReading
+                <Activity className="w-4 h-4 text-blue-400" /> Standard JSON FloodReading
               </span>
               <span className="flex items-center gap-1">
-                <ShieldCheck className="w-4 h-4 text-emerald-400" /> Không cần cảm biến chìm
+                <ShieldCheck className="w-4 h-4 text-emerald-400" /> Zero submerged hardware
               </span>
             </div>
           </div>
@@ -75,9 +75,9 @@ export default function DemoPage() {
           <section className="space-y-4">
             <div className="flex items-center justify-between border-b border-slate-200 pb-3">
               <div>
-                <h2 className="text-xl font-bold text-slate-900">Kết quả phân tích thị giác AI</h2>
+                <h2 className="text-xl font-bold text-slate-900">AI Computer Vision Analysis Results</h2>
                 <p className="text-xs text-slate-500">
-                  Đã phân tích {results.length} khung hình bằng phương pháp VLRDR
+                  Analyzed {results.length} camera frames using VLRDR methodology
                 </p>
               </div>
               <button
@@ -88,7 +88,7 @@ export default function DemoPage() {
                 }}
                 className="text-xs text-slate-500 hover:text-rose-600 transition"
               >
-                Xóa kết quả
+                Clear results
               </button>
             </div>
 

@@ -74,7 +74,7 @@ Output JSON schema:
   "depth_estimate_cm_min": integer,
   "depth_estimate_cm_max": integer,
   "reference_objects_used": ["string", ...],
-  "reasoning": "Clear description of visual landmarks detected and water contact points in Vietnamese or English",
-  "alert_message": "Actionable public alert message summarizing water depth and road passability"
+  "reasoning": "Clear description of visual landmarks detected and water contact points in English",
+  "alert_message": "Actionable public alert message summarizing water depth and road passability in English"
 }}
 """

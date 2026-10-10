@@ -45,7 +45,7 @@ class FloodReadingParser:
                 depth_estimate_cm_max=0,
                 reference_objects_used=[],
                 reasoning=f"Failed to parse AI response into structured JSON: {str(err)}. Raw output preview: {raw_text[:100]}",
-                alert_message="Chưa thể phân tích mức độ ngập do lỗi định dạng kết quả AI.",
+                alert_message="Unable to evaluate flood depth due to AI response formatting error.",
             )
 
         # Ensure camera_id and timestamp are populated
@@ -85,6 +85,6 @@ class FloodReadingParser:
 
         # Ensure strings
         data["reasoning"] = str(data.get("reasoning", "No visual reasoning provided."))[:1000]
-        data["alert_message"] = str(data.get("alert_message", "Không có cảnh báo."))[:300]
+        data["alert_message"] = str(data.get("alert_message", "No active alert advisory."))[:300]
 
         return FloodReading.model_validate(data)

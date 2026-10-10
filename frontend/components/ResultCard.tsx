@@ -33,42 +33,42 @@ const LEVEL_CONFIG: Record<
   { label: string; color: string; badge: string; border: string; bg: string }
 > = {
   0: {
-    label: "Level 0: Khô ráo (0cm)",
+    label: "Level 0: Dry (0cm)",
     color: "text-emerald-700",
     badge: "bg-emerald-100 text-emerald-800",
     border: "border-emerald-300",
     bg: "bg-emerald-50/50",
   },
   1: {
-    label: "Level 1: Vũng nước nhỏ (5-15cm)",
+    label: "Level 1: Minor Pooling (5–15cm)",
     color: "text-lime-700",
     badge: "bg-lime-100 text-lime-800",
     border: "border-lime-300",
     bg: "bg-lime-50/50",
   },
   2: {
-    label: "Level 2: Chú ý (15-30cm)",
+    label: "Level 2: Caution for 2-Wheelers (15–30cm)",
     color: "text-amber-700",
     badge: "bg-amber-100 text-amber-800",
     border: "border-amber-300",
     bg: "bg-amber-50/50",
   },
   3: {
-    label: "Level 3: Nguy hiểm — Chìm ống xả (30-45cm)",
+    label: "Level 3: Danger — Exhaust Submerged (30–45cm)",
     color: "text-orange-700",
     badge: "bg-orange-100 text-orange-800",
     border: "border-orange-300",
     bg: "bg-orange-50/50",
   },
   4: {
-    label: "Level 4: Ngập sâu — Chìm yên xe (45-70cm)",
+    label: "Level 4: Severe — Sills/Seats Submerged (45–70cm)",
     color: "text-red-700",
     badge: "bg-red-100 text-red-800",
     border: "border-red-300",
     bg: "bg-red-50/50",
   },
   5: {
-    label: "Level 5: Khẩn cấp — Xe ngập lút (>70cm)",
+    label: "Level 5: Catastrophic — Deep Inundation (>70cm)",
     color: "text-purple-700",
     badge: "bg-purple-100 text-purple-800",
     border: "border-purple-300",
@@ -104,11 +104,11 @@ export const ResultCard: React.FC<ResultCardProps> = ({ data, imagePreview, file
               </span>
               {reading.flood_detected ? (
                 <span className="flex items-center gap-1 text-xs font-semibold text-rose-600 bg-rose-50 px-2 py-0.5 rounded-full border border-rose-200">
-                  <ShieldAlert className="w-3.5 h-3.5" /> Có ngập lụt
+                  <ShieldAlert className="w-3.5 h-3.5" /> Flooding Detected
                 </span>
               ) : (
                 <span className="flex items-center gap-1 text-xs font-semibold text-emerald-600 bg-emerald-50 px-2 py-0.5 rounded-full border border-emerald-200">
-                  <CheckCircle className="w-3.5 h-3.5" /> Tuyến đường an toàn
+                  <CheckCircle className="w-3.5 h-3.5" /> Clear & Dry Route
                 </span>
               )}
             </div>
@@ -127,7 +127,7 @@ export const ResultCard: React.FC<ResultCardProps> = ({ data, imagePreview, file
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div className="bg-white/80 p-3.5 rounded-xl border border-slate-200">
               <div className="text-xs font-medium text-slate-500 flex items-center gap-1.5 mb-1">
-                <Gauge className="w-3.5 h-3.5 text-blue-600" /> Độ sâu ước tính (VLRDR)
+                <Gauge className="w-3.5 h-3.5 text-blue-600" /> Estimated Depth (VLRDR)
               </div>
               <div className="text-2xl font-extrabold text-slate-900">
                 {reading.depth_estimate_cm_min} – {reading.depth_estimate_cm_max}{" "}
@@ -137,7 +137,7 @@ export const ResultCard: React.FC<ResultCardProps> = ({ data, imagePreview, file
 
             <div className="bg-white/80 p-3.5 rounded-xl border border-slate-200">
               <div className="text-xs font-medium text-slate-500 mb-1 flex justify-between">
-                <span>Độ tin cậy AI</span>
+                <span>AI Confidence</span>
                 <span className="font-semibold text-slate-700">{Math.round(reading.confidence_score * 100)}%</span>
               </div>
               <div className="w-full bg-slate-100 rounded-full h-2.5 overflow-hidden mt-2">
@@ -153,7 +153,7 @@ export const ResultCard: React.FC<ResultCardProps> = ({ data, imagePreview, file
           <div className="bg-amber-500/10 border-l-4 border-amber-500 p-3 rounded-r-xl text-sm font-medium text-amber-900 flex items-start gap-2">
             <AlertTriangle className="w-5 h-5 text-amber-600 flex-shrink-0 mt-0.5" />
             <div>
-              <span className="font-bold">Cảnh báo: </span>
+              <span className="font-bold">Public Advisory: </span>
               {reading.alert_message}
             </div>
           </div>
@@ -162,7 +162,7 @@ export const ResultCard: React.FC<ResultCardProps> = ({ data, imagePreview, file
           {reading.reference_objects_used && reading.reference_objects_used.length > 0 && (
             <div>
               <div className="text-xs font-semibold text-slate-600 uppercase tracking-wider mb-1.5">
-                Mốc vật lý làm thước đo (Landmarks):
+                Physical Landmarks Identified (Visual Rulers):
               </div>
               <div className="flex flex-wrap gap-1.5">
                 {reading.reference_objects_used.map((ref, i) => (
@@ -180,7 +180,7 @@ export const ResultCard: React.FC<ResultCardProps> = ({ data, imagePreview, file
           {/* AI Reasoning */}
           <div className="bg-white/80 p-3.5 rounded-xl border border-slate-200 text-sm text-slate-700">
             <div className="text-xs font-semibold text-slate-500 uppercase tracking-wider mb-1">
-              Suy luận thị giác (Visual Reasoning):
+              Visual Landmark Relative Depth Reasoning:
             </div>
             <p className="leading-relaxed text-slate-800">{reading.reasoning}</p>
           </div>

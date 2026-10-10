@@ -169,7 +169,7 @@ class GeminiClient:
   "depth_estimate_cm_min": 30,
   "depth_estimate_cm_max": 38,
   "reference_objects_used": ["Honda Wave motorcycle rear wheel", "exhaust pipe", "sidewalk curb"],
-  "reasoning": "Mực nước ngập ngang nửa bánh xe máy (~50cm) và ngập qua miệng ống xả xe Wave. Bờ vỉa hè (15cm) đã chìm hoàn toàn dưới mặt nước đục.",
-  "alert_message": "Ngập 30-38cm! Ống xả xe máy đã chìm. Xe 2 bánh và sedan không nên di chuyển qua đoạn đường này."
+  "reasoning": "Water level reaches half of the motorcycle rear wheel diameter (~50cm) and submerges the exhaust pipe tip. The 15cm sidewalk curb is completely submerged underwater.",
+  "alert_message": "Flooding 30-38cm! Motorcycle exhaust pipes are submerged. Two-wheelers and low-clearance sedans should avoid this corridor."
 }"""
         return mock_json, "mock-vlrdr-engine", 0.35, 420

@@ -6,8 +6,8 @@ export default function App({ Component, pageProps }: AppProps) {
   return (
     <>
       <Head>
-        <title>FloodWheel — Đo độ sâu ngập lụt đô thị thời gian thực</title>
-        <meta name="description" content="Đo độ sâu ngập lụt đô thị theo thời gian thực từ Camera giao thông bằng Gemini Vision AI (VLRDR)" />
+        <title>FloodWheel — Real-Time Urban Flood Depth Intelligence</title>
+        <meta name="description" content="Real-time urban flood depth mapping from municipal traffic cameras using Gemini Vision AI (VLRDR)" />
         <meta name="viewport" content="width=device-width, initial-scale=1" />
         <link rel="icon" href="/favicon.ico" />
       </Head>
