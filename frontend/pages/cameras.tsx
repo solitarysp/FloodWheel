@@ -124,7 +124,7 @@ export default function CamerasPage() {
   });
 
   const onlineCount = cameras.filter((c) => c.status.toUpperCase() === "ONLINE").length;
-  const videoCount = cameras.filter((c) => !!c.video_url).length;
+  const sectorsCount = new Set(cameras.map((c) => c.location)).size;
 
   return (
     <div className="min-h-screen bg-slate-50 text-slate-800 flex flex-col font-sans">
@@ -145,14 +145,14 @@ export default function CamerasPage() {
           <div className="relative z-10 space-y-4 max-w-3xl">
             <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-blue-500/20 text-blue-300 text-xs font-semibold border border-blue-400/30">
               <CameraIcon className="w-3.5 h-3.5" />
-              <span>Public CCTV Stream Network</span>
+              <span>Municipal CCTV Snapshot Grid</span>
             </div>
             <h1 className="text-3xl sm:text-4xl font-extrabold tracking-tight">
               Live Public Cameras & AI Snapshot Inspection
             </h1>
             <p className="text-sm sm:text-base text-slate-300 leading-relaxed">
-              Monitor real-time municipal traffic CCTV feeds across high-risk corridors. Watch live{" "}
-              <strong className="text-white">.m3u8 video streams</strong> or periodic snapshot feeds, then click{" "}
+              Monitor real-time municipal traffic CCTV feeds across high-risk corridors. View live{" "}
+              <strong className="text-white">snapshot feeds</strong> from HCMC traffic intersections, then click{" "}
               <strong className="text-white">"Capture & Analyze"</strong> to measure flood depth in centimeters
               using Gemini Vision VLRDR without physical sensor hardware.
             </p>
@@ -164,12 +164,12 @@ export default function CamerasPage() {
                 <span className="text-xl font-bold text-white">{cameras.length} Nodes</span>
               </div>
               <div className="bg-white/5 backdrop-blur-md p-3 rounded-2xl border border-white/10">
-                <span className="text-xs text-slate-400 block font-medium">HLS Video Streams</span>
-                <span className="text-xl font-bold text-blue-300">{videoCount} .m3u8 Feeds</span>
+                <span className="text-xs text-slate-400 block font-medium">Monitored Sectors</span>
+                <span className="text-xl font-bold text-blue-300">{sectorsCount} Locations</span>
               </div>
               <div className="bg-white/5 backdrop-blur-md p-3 rounded-2xl border border-white/10">
-                <span className="text-xs text-slate-400 block font-medium">Online Cameras</span>
-                <span className="text-xl font-bold text-emerald-400">{onlineCount} Active</span>
+                <span className="text-xs text-slate-400 block font-medium">Active Snapshot Feeds</span>
+                <span className="text-xl font-bold text-emerald-400">{onlineCount} Online</span>
               </div>
               <div className="bg-white/5 backdrop-blur-md p-3 rounded-2xl border border-white/10">
                 <span className="text-xs text-slate-400 block font-medium">AI Inference</span>

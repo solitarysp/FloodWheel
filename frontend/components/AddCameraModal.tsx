@@ -1,5 +1,5 @@
 import React, { useState } from "react";
-import { X, Camera, PlusCircle, CheckCircle, AlertCircle, Link as LinkIcon, Video } from "lucide-react";
+import { X, Camera, PlusCircle, CheckCircle, AlertCircle, Link as LinkIcon } from "lucide-react";
 
 interface AddCameraModalProps {
   isOpen: boolean;
@@ -19,7 +19,6 @@ export const AddCameraModal: React.FC<AddCameraModalProps> = ({
   const [longitude, setLongitude] = useState("106.6985");
   const [cameraAngle, setCameraAngle] = useState("elevated");
   const [streamUrl, setStreamUrl] = useState("");
-  const [videoUrl, setVideoUrl] = useState("");
   const [zoneId, setZoneId] = useState("zone-le-loi");
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -35,7 +34,6 @@ export const AddCameraModal: React.FC<AddCameraModalProps> = ({
       setLongitude("106.6989");
       setCameraAngle("overhead");
       setStreamUrl("https://giaothong.hochiminhcity.gov.vn:8007/Render/CameraHandler.ashx?id=662b85031afb9c00172dd0dc&bg=black&w=640&h=360");
-      setVideoUrl("http://camera.thongtingiaothong.vn/s/56de42f611f398ec0c481287/index.m3u8");
       setZoneId("zone-le-loi");
     } else if (district === "binhthanh") {
       setId(`cam-custom-${Math.floor(Math.random() * 900 + 100)}`);
@@ -45,7 +43,6 @@ export const AddCameraModal: React.FC<AddCameraModalProps> = ({
       setLongitude("106.7164");
       setCameraAngle("elevated");
       setStreamUrl("https://giaothong.hochiminhcity.gov.vn:8007/Render/CameraHandler.ashx?id=63b65ebebfd3d90017eaa3ae&bg=black&w=640&h=360");
-      setVideoUrl("http://camera.thongtingiaothong.vn/s/5822b5ededeb6c0012a2d66a/index.m3u8");
       setZoneId("zone-nguyen-huu-canh");
     } else {
       setId(`cam-custom-${Math.floor(Math.random() * 900 + 100)}`);
@@ -55,7 +52,6 @@ export const AddCameraModal: React.FC<AddCameraModalProps> = ({
       setLongitude("106.7580");
       setCameraAngle("street_level");
       setStreamUrl("https://giaothong.hochiminhcity.gov.vn:8007/Render/CameraHandler.ashx?id=5d8cd542766c880017188948&bg=black&w=640&h=360");
-      setVideoUrl("http://125.234.114.126:11984/api/stream.m3u8?src=N%C3%BAt%20giao%20Th%E1%BB%A7%20%C4%90%E1%BB%A9c%203&mp4");
       setZoneId("zone-vo-van-ngan");
     }
     setError(null);
@@ -80,7 +76,6 @@ export const AddCameraModal: React.FC<AddCameraModalProps> = ({
           longitude: parseFloat(longitude),
           camera_angle: cameraAngle,
           stream_url: streamUrl,
-          video_url: videoUrl ? videoUrl.trim() : null,
           zone_id: zoneId && zoneId.trim() ? zoneId.trim() : null,
         }),
       });
@@ -234,25 +229,6 @@ export const AddCameraModal: React.FC<AddCameraModalProps> = ({
               />
               <LinkIcon className="w-3.5 h-3.5 text-slate-400 absolute left-2.5 top-2.5" />
             </div>
-          </div>
-
-          <div>
-            <label className="text-slate-700 font-semibold mb-1 block">
-              Video Stream URL (.m3u8 HLS) <span className="text-slate-400 font-normal">(Optional)</span>
-            </label>
-            <div className="relative">
-              <input
-                type="url"
-                value={videoUrl}
-                onChange={(e) => setVideoUrl(e.target.value)}
-                placeholder="http://camera.thongtingiaothong.vn/s/.../index.m3u8"
-                className="w-full pl-8 pr-3 py-2 rounded-xl border border-slate-200 font-mono text-xs focus:ring-2 focus:ring-blue-500 focus:outline-none"
-              />
-              <Video className="w-3.5 h-3.5 text-slate-400 absolute left-2.5 top-2.5" />
-            </div>
-            <p className="text-[11px] text-slate-400 mt-1">
-              Authentic HLS .m3u8 link for 24/7 video streaming playback.
-            </p>
           </div>
 
           <div>

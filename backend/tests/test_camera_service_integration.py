@@ -19,7 +19,6 @@ def test_convert_external_camera():
         "longitude": 106.71182,
         "status": "UP",
         "snapshot_url": "/api/v1/cameras/662b86c41afb9c00172dd31c/snapshot",
-        "live_video_url": "https://stream.example.com/live.m3u8",
     }
 
     converted: CameraResponse = _convert_external_camera(raw_dto)

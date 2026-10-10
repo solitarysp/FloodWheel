@@ -263,11 +263,7 @@ class HCMCCameraProvider(BaseCameraProvider):
                     code = cam_raw.get("Code")
                     district = cam_raw.get("Disctrict") or cam_raw.get("District")
                     status = str(cam_raw.get("CamStatus") or "UNKNOWN").upper()
-                    has_ptz = str(cam_raw.get("PTZ")).lower() == "true"
                     cam_type = cam_raw.get("CamType") or "PTZ"
-                    video_url = cam_raw.get("VideoUrl")
-                    video_streaming = int(cam_raw.get("VideoStreaming") or 0)
-
                     # Proxy snapshot URL endpoint
                     snapshot_url = f"/api/v1/cameras/{cam_id}/snapshot"
 
@@ -283,10 +279,7 @@ class HCMCCameraProvider(BaseCameraProvider):
                             longitude=lng,
                             status=status,
                             camera_type=cam_type,
-                            has_ptz=has_ptz,
                             snapshot_url=snapshot_url,
-                            live_video_url=video_url,
-                            video_streaming=video_streaming,
                             last_synced_at=now,
                         )
                     )

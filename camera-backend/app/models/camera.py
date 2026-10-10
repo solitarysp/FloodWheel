@@ -17,10 +17,7 @@ class CameraDTO(BaseModel):
     longitude: Optional[float] = Field(default=None, description="WGS84 Longitude")
     status: str = Field(default="UP", description="Operational status: UP, DOWN, UNKNOWN")
     camera_type: Optional[str] = Field(default="PTZ", description="Camera hardware type")
-    has_ptz: bool = Field(default=False, description="Whether camera supports Pan-Tilt-Zoom")
     snapshot_url: Optional[str] = Field(default=None, description="Proxy snapshot URL endpoint")
-    live_video_url: Optional[str] = Field(default=None, description="Direct HLS streaming URL if available")
-    video_streaming: int = Field(default=0, description="Streaming capability code")
     last_synced_at: Optional[datetime] = Field(default=None, description="Timestamp when record was synced")
     raw_metadata: Optional[Dict[str, Any]] = Field(default=None, description="Raw provider metadata")
 

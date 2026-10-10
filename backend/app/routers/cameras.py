@@ -22,7 +22,7 @@ camera_service_client = CameraServiceClient()
 
 
 class CameraAnalyzeRequest(BaseModel):
-    image_base64: Optional[str] = Field(None, description="Optional base64 JPEG captured directly from live video stream")
+    image_base64: Optional[str] = Field(None, description="Optional base64 JPEG snapshot frame")
 
 
 def _convert_external_camera(raw: dict) -> CameraResponse:
@@ -36,7 +36,7 @@ def _convert_external_camera(raw: dict) -> CameraResponse:
         longitude=float(raw.get("longitude") or 106.7009),
         camera_angle="elevated",
         stream_url=str(raw.get("snapshot_url") or f"/cameras/{raw.get('id')}/snapshot"),
-        video_url=raw.get("live_video_url"),
+        video_url=None,
         zone_id=None,
         status=status_str,
         failed_polls_count=0,

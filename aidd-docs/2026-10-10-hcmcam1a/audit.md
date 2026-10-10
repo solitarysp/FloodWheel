@@ -210,6 +210,30 @@
 - **All 7 Units of Work Completed**: 28 / 28 Story Points (100%).
 - **Status**: ALL_PHASES_COMPLETED.
 
+---
+
+### [2026-10-10T15:28:00+07:00] REFACTORING & OPTIMIZATION: EXCLUSIVE SNAPSHOT FEED (M3U8 REMOVAL)
+
+**User Input (verbatim):**
+> tính năng camera hiện tại chỉ dùng `Snapshot Feed` không dùng m3u8, xoá m3u8 đi.
+
+**Actions Executed:**
+1. **Frontend Optimization**:
+   - `frontend/components/CameraCard.tsx`: Removed HLS.js dynamic script loading, `<video>` player element, HLS error overlays, and stream mode toggle buttons. Converted component to a pure high-performance `Snapshot Feed` tile with OSD badges, manual refresh button, auto-refresh interval buster, and "Capture & Analyze" trigger.
+   - `frontend/components/AddCameraModal.tsx`: Removed `Video Stream URL (.m3u8 HLS)` input field and state.
+   - `frontend/pages/cameras.tsx`: Updated hero section copy and metrics strip from `.m3u8 feeds` to `Monitored Sectors` and `Active Snapshot Feeds`.
+2. **Backend & Microservice Cleanup**:
+   - `camera-backend/app/models/camera.py`: Removed `live_video_url` and `video_streaming` from `CameraDTO`.
+   - `camera-backend/app/providers/hcmc.py`: Removed HLS video URL and streaming code parsing.
+   - `backend/app/routers/cameras.py`: Updated `_convert_external_camera` to set `video_url=None`.
+   - `backend/app/db/seed_data.py`: Removed `.m3u8` URLs from sample camera seeds.
+   - `backend/app/models/camera.py` & `db_models.py`: Deprecated legacy `video_url` columns.
+   - `backend/tests/test_camera_service_integration.py`: Removed video stream keys from test fixtures.
+3. **Verification**:
+   - Grep verification: 0 active `.m3u8` or HLS stream references remaining in code.
+   - AST validation: 100% pass across all Python files.
+
+
 
 
 

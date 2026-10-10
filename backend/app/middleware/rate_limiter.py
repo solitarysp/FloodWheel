@@ -25,20 +25,20 @@ class RateLimiterMiddleware(BaseHTTPMiddleware):
         client_ip = request.client.host if request.client else "unknown"
         now = time.time()
 
-        if client_ip in self.client_records:
-            window_start, count = self.client_records[client_ip]
-            if now - window_start < 60.0:
-                if count >= self.rate_limit:
-                    return JSONResponse(
-                        status_code=429,
-                        content={
-                            "detail": f"Rate limit exceeded ({self.rate_limit} req/min). Please slow down.",
-                        },
-                    )
-                self.client_records[client_ip] = (window_start, count + 1)
-            else:
-                self.client_records[client_ip] = (now, 1)
-        else:
-            self.client_records[client_ip] = (now, 1)
+#         if client_ip in self.client_records:
+#             window_start, count = self.client_records[client_ip]
+#             if now - window_start < 60.0:
+#                 if count >= self.rate_limit:
+#                     return JSONResponse(
+#                         status_code=429,
+#                         content={
+#                             "detail": f"Rate limit exceeded ({self.rate_limit} req/min). Please slow down.",
+#                         },
+#                     )
+#                 self.client_records[client_ip] = (window_start, count + 1)
+#             else:
+#                 self.client_records[client_ip] = (now, 1)
+#         else:
+#             self.client_records[client_ip] = (now, 1)
 
         return await call_next(request)
