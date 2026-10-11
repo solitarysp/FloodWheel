@@ -331,7 +331,7 @@ class HCMCCameraProvider(BaseCameraProvider):
                 resp = await self._client.get(
                     url,
                     cookies=self._cookies,
-                    timeout=settings.HTTP_TIMEOUT_SECONDS,
+                    timeout=min(settings.HTTP_TIMEOUT_SECONDS, 4.0),
                 )
 
                 if resp.status_code in (401, 403) or len(resp.content) < 50:
@@ -355,6 +355,17 @@ class HCMCCameraProvider(BaseCameraProvider):
 
             except Exception as exc:
                 logger.warning("Snapshot fetch attempt %d failed for %s: %s", attempt + 1, camera_id, exc)
+                # Fast fallback: if we have a valid snapshot on disk, return it immediately
+                if self.storage_service:
+                    stored_frame = await self.storage_service.get_snapshot(camera_id)
+                    if stored_frame and ImageValidator.is_valid_snapshot(stored_frame):
+                        logger.info(
+                            "Serving last-known-good disk fallback frame for camera %s (%d bytes)",
+                            camera_id,
+                            len(stored_frame),
+                        )
+                        return stored_frame, "disk-storage"
+
                 if attempt == 0:
                     await self.init_session(force=True)
                 else:

@@ -36,6 +36,7 @@ class Settings(BaseSettings):
 
     # Microservices
     CAMERA_BACKEND_URL: str = "http://camera-backend:8001"
+    SNAPSHOT_STORAGE_DIR: str = "storage/snapshots"
 
     # CORS
     CORS_ORIGINS: Union[List[str], str] = ["http://localhost:3000", "http://127.0.0.1:3000"]

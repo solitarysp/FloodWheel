@@ -6,6 +6,9 @@ synthetic fallback frames when external streams are unreachable.
 """
 
 import io
+from pathlib import Path
+import re
+import logging
 import time
 from datetime import datetime, timezone
 from typing import Dict, Optional, Tuple
@@ -15,6 +18,8 @@ try:
 except ImportError:
     httpx = None
 from PIL import Image, ImageDraw
+
+logger = logging.getLogger("floodwheel.camera_stream_service")
 
 
 class CameraStreamService:
@@ -106,47 +111,108 @@ class CameraStreamService:
         return buf.getvalue()
 
     @classmethod
+    def get_stored_disk_snapshot(cls, camera_id: str) -> Optional[bytes]:
+        """Reads camera snapshot from local persistent disk storage if present and valid."""
+        if not camera_id:
+            return None
+        safe_id = re.sub(r"[^a-zA-Z0-9_\-]", "_", str(camera_id).strip())
+        from app.services.image_validator import ImageValidator
+        candidate_dirs = []
+        try:
+            from app.config import settings
+            candidate_dirs.append(Path(settings.SNAPSHOT_STORAGE_DIR))
+        except Exception:
+            pass
+        candidate_dirs.extend([
+            Path("/app/storage/snapshots"),
+            Path("storage/snapshots"),
+            Path("camera-backend/storage/snapshots"),
+            Path("../camera-backend/storage/snapshots"),
+        ])
+
+        for c_dir in candidate_dirs:
+            target = c_dir / f"{safe_id}.jpg"
+            if target.is_file():
+                try:
+                    data = target.read_bytes()
+                    if ImageValidator.is_valid_real_snapshot(data):
+                        logger.info("Found valid stored snapshot on disk at %s (%d bytes)", target, len(data))
+                        return data
+                except Exception as exc:
+                    logger.debug("Failed reading candidate snapshot %s: %s", target, exc)
+        return None
+
+    @classmethod
     async def get_snapshot_bytes(
         cls,
-        stream_url: str,
-        camera_id: str,
+        stream_url: str = "",
+        camera_id: str = "",
         camera_name: str = "",
         force_refresh: bool = False,
     ) -> Tuple[bytes, str]:
-        """Fetches raw snapshot frame bytes and MIME type, utilizing 5-second TTL cache.
+        """Fetches raw snapshot frame bytes and MIME type.
 
-        Falls back gracefully to a synthetic live CCTV frame if external server is unreachable.
+        Resolution hierarchy:
+        1. In-memory cache (if valid real snapshot and not force refreshing)
+        2. Dedicated camera-backend microservice (live HCMC scrapers with .VDMS cookies)
+        3. Local persistent disk storage (last-known-good historical frame, e.g. 56de42f611f398ec0c481299.jpg)
+        4. Direct public stream URL (if valid http/https)
+        5. Realistic synthetic fallback frame (only if all sources unavailable)
         """
+        from app.services.image_validator import ImageValidator
         now = time.time()
 
-        # Check memory cache if not force refreshing
+        # 1. Check in-memory cache
         if not force_refresh and camera_id in cls._cache:
             cached_bytes, cached_mime, cached_at = cls._cache[camera_id]
             if now - cached_at < cls.CACHE_TTL_SECONDS:
-                return cached_bytes, cached_mime
+                if ImageValidator.is_valid_real_snapshot(cached_bytes):
+                    return cached_bytes, cached_mime
 
-        # Attempt to fetch live frame from public stream URL
-        is_valid, _ = cls.validate_stream_url(stream_url)
-        if is_valid:
+        # 2. Try camera-backend microservice
+        if camera_id:
             try:
-                headers = {
-                    "User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/133.0.0.0 Safari/537.36",
-                    "Referer": "https://giaothong.hochiminhcity.gov.vn/map.aspx",
-                    "Accept": "image/avif,image/webp,image/apng,image/svg+xml,image/*,*/*;q=0.8",
-                    "Accept-Language": "en-US,en;q=0.9,vi;q=0.8",
-                }
-                async with httpx.AsyncClient(timeout=3.5, follow_redirects=True, verify=False) as client:
-                    resp = await client.get(stream_url, headers=headers)
-                    if resp.status_code == 200 and len(resp.content) > 100:
-                        content_type = resp.headers.get("content-type", "image/jpeg").split(";")[0]
-                        if "image" in content_type:
-                            cls._cache[camera_id] = (resp.content, content_type, now)
-                            return resp.content, content_type
-            except Exception:
-                # Fall through to synthetic fallback on connection timeout or network block
-                pass
+                from app.services.camera_service_client import camera_service_client
+                remote_bytes, remote_mime = await camera_service_client.get_snapshot_bytes(
+                    camera_id=camera_id,
+                    camera_name=camera_name,
+                    force_refresh=force_refresh,
+                )
+                if remote_bytes and ImageValidator.is_valid_real_snapshot(remote_bytes):
+                    cls._cache[camera_id] = (remote_bytes, remote_mime, now)
+                    return remote_bytes, remote_mime
+            except Exception as exc:
+                logger.debug("camera_service_client query failed for %s: %s", camera_id, exc)
 
-        # Generate realistic fallback CCTV frame
+        # 3. Check local persistent disk storage (e.g. storage/snapshots/{camera_id}.jpg)
+        if camera_id:
+            disk_bytes = cls.get_stored_disk_snapshot(camera_id)
+            if disk_bytes and ImageValidator.is_valid_real_snapshot(disk_bytes):
+                cls._cache[camera_id] = (disk_bytes, "image/jpeg", now)
+                return disk_bytes, "image/jpeg"
+
+        # 4. Attempt to fetch live frame from public stream URL (if valid external URL)
+        if stream_url:
+            is_valid, _ = cls.validate_stream_url(stream_url)
+            if is_valid:
+                try:
+                    headers = {
+                        "User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/133.0.0.0 Safari/537.36",
+                        "Referer": "https://giaothong.hochiminhcity.gov.vn/map.aspx",
+                        "Accept": "image/avif,image/webp,image/apng,image/svg+xml,image/*,*/*;q=0.8",
+                        "Accept-Language": "en-US,en;q=0.9,vi;q=0.8",
+                    }
+                    async with httpx.AsyncClient(timeout=3.5, follow_redirects=True, verify=False) as client:
+                        resp = await client.get(stream_url, headers=headers)
+                        if resp.status_code == 200 and len(resp.content) > 100:
+                            if ImageValidator.is_valid_real_snapshot(resp.content):
+                                content_type = resp.headers.get("content-type", "image/jpeg").split(";")[0]
+                                cls._cache[camera_id] = (resp.content, content_type, now)
+                                return resp.content, content_type
+                except Exception:
+                    pass
+
+        # 5. Last resort: Generate synthetic fallback CCTV frame
         mock_bytes = cls.generate_mock_frame(camera_id, camera_name)
         cls._cache[camera_id] = (mock_bytes, "image/jpeg", now)
         return mock_bytes, "image/jpeg"

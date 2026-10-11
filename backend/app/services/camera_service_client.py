@@ -30,7 +30,7 @@ class CameraServiceClient:
             if httpx:
                 self._client = httpx.AsyncClient(
                     base_url=self.base_url,
-                    timeout=httpx.Timeout(8.0, connect=3.0),
+                    timeout=httpx.Timeout(10.0, connect=3.0),
                 )
         return self._client
 
@@ -94,6 +94,7 @@ class CameraServiceClient:
         camera_name: str = "",
         width: Optional[int] = None,
         height: Optional[int] = None,
+        force_refresh: bool = False,
     ) -> Tuple[bytes, str]:
         """Fetches JPEG snapshot bytes from camera-backend or generates fallback frame."""
         client = self._get_client()
@@ -103,13 +104,27 @@ class CameraServiceClient:
                 params["w"] = width
             if height:
                 params["h"] = height
+            if force_refresh:
+                params["force_refresh"] = "true"
 
             try:
                 resp = await client.get(f"/api/v1/cameras/{camera_id}/snapshot", params=params)
                 if resp.status_code == 200 and len(resp.content) > 100:
-                    return resp.content, resp.headers.get("content-type", "image/jpeg")
+                    from app.services.image_validator import ImageValidator
+                    if ImageValidator.is_valid_real_snapshot(resp.content):
+                        return resp.content, resp.headers.get("content-type", "image/jpeg")
             except Exception as exc:
                 logger.warning("Failed to pull snapshot from camera-backend for %s: %s", camera_id, exc)
 
-        # Fallback to local high-contrast synthetic frame
+        # Fallback 1: check local persistent disk storage (e.g. storage/snapshots/{camera_id}.jpg)
+        from app.services.image_validator import ImageValidator
+        disk_bytes = CameraStreamService.get_stored_disk_snapshot(camera_id)
+        if disk_bytes and ImageValidator.is_valid_real_snapshot(disk_bytes):
+            return disk_bytes, "image/jpeg"
+
+        # Fallback 2: high-contrast synthetic frame
         return CameraStreamService.generate_mock_frame(camera_id, camera_name), "image/jpeg"
+
+
+# Export singleton client instance
+camera_service_client = CameraServiceClient()

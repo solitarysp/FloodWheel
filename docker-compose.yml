@@ -29,9 +29,11 @@ services:
       - DATABASE_URL=postgresql+asyncpg://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD:-postgres}@postgres:5432/${POSTGRES_DB:-floodwheel}
       - REDIS_URL=redis://redis:6379/0
       - CAMERA_BACKEND_URL=http://camera-backend:8001
+      - SNAPSHOT_STORAGE_DIR=/app/storage/snapshots
       - CORS_ORIGINS=["http://localhost:3000","http://127.0.0.1:3000"]
     volumes:
       - ./backend:/app
+      - ./camera-backend/storage/snapshots:/app/storage/snapshots:ro
     depends_on:
       postgres:
         condition: service_healthy

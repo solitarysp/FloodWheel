@@ -158,20 +158,17 @@ async def get_camera_snapshot(
     t: Optional[int] = Query(None, description="Cache buster timestamp"),
     db: AsyncSession = Depends(get_db),
 ):
-    """Proxies the latest image frame from camera-backend or local stream URL."""
+    """Proxies the latest image frame from camera-backend, persistent disk storage, or stream URL."""
     cam = await CameraRegistry.get_by_id(db, camera_id)
-    if cam:
-        frame_bytes, content_type = await CameraStreamService.get_snapshot_bytes(
-            stream_url=cam.stream_url,
-            camera_id=cam.id,
-            camera_name=cam.name,
-        )
-    else:
-        # Check camera-backend service directly
-        frame_bytes, content_type = await camera_service_client.get_snapshot_bytes(
-            camera_id=camera_id,
-            camera_name=camera_id,
-        )
+    stream_url = cam.stream_url if cam else ""
+    camera_name = cam.name if cam else camera_id
+
+    frame_bytes, content_type = await CameraStreamService.get_snapshot_bytes(
+        stream_url=stream_url,
+        camera_id=camera_id,
+        camera_name=camera_name,
+        force_refresh=bool(t),
+    )
 
     return Response(
         content=frame_bytes,
