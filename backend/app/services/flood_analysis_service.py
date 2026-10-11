@@ -1,0 +1,217 @@
+"""Flood Analysis & Aggregation Service.
+
+Orchestrates snapshot fetching, Gemini Vision AI inference (VLRDR methodology),
+database persistence of flood readings, and multi-camera zone aggregation.
+"""
+
+import asyncio
+import base64
+from datetime import datetime, timezone
+import json
+import logging
+from typing import Any, Dict, List, Optional
+from sqlalchemy import desc, select
+from sqlalchemy.ext.asyncio import AsyncSession
+
+from app.models.db_models import Camera, FloodReadingDB, FloodZone
+from app.models.flood_reading import AnalysisResponse, FloodReading
+from app.services.camera_registry import CameraRegistry
+from app.services.camera_service_client import CameraServiceClient
+from app.services.camera_stream_service import CameraStreamService
+from app.services.flood_reading_parser import FloodReadingParser
+from app.services.gemini_client import GeminiClient
+from app.services.zone_aggregator import ZoneAggregator
+
+logger = logging.getLogger("floodwheel.analysis_service")
+
+
+class FloodAnalysisService:
+    """Service executing AI flood analysis and updating spatial aggregations."""
+
+    def __init__(self):
+        self.gemini_client = GeminiClient()
+        self.camera_service_client = CameraServiceClient()
+
+    async def analyze_single_camera(
+        self,
+        session: AsyncSession,
+        camera_id: str,
+        image_base64: Optional[str] = None,
+    ) -> AnalysisResponse:
+        """Executes flood depth analysis on a camera snapshot and updates zone aggregation."""
+        # 1. Resolve camera details
+        cam = await CameraRegistry.get_by_id(session, camera_id)
+        camera_name = cam.name if cam else camera_id
+        camera_location = cam.location if cam else "TP. Hồ Chí Minh"
+        camera_lat = cam.latitude if cam else 10.7769
+        camera_lng = cam.longitude if cam else 106.7009
+        camera_angle = (cam.camera_angle if cam else None) or "elevated"
+
+        # If not present in DB, attempt lookup from camera-backend
+        if not cam:
+            remote_cam = await self.camera_service_client.get_camera_by_id(camera_id)
+            if remote_cam:
+                camera_name = remote_cam.get("name") or camera_id
+                camera_location = remote_cam.get("district") or remote_cam.get("name") or "TP. Hồ Chí Minh"
+                camera_lat = float(remote_cam.get("latitude") or 10.7769)
+                camera_lng = float(remote_cam.get("longitude") or 106.7009)
+
+        # Ensure Camera and FloodZone exist in DB
+        cam = await CameraRegistry.ensure_camera_and_zone(
+            session=session,
+            camera_id=camera_id,
+            name=camera_name,
+            location=camera_location,
+            latitude=camera_lat,
+            longitude=camera_lng,
+            camera_angle=camera_angle,
+            status="ONLINE",
+        )
+
+        # 2. Acquire frame bytes
+        frame_bytes = None
+        if image_base64:
+            try:
+                raw_b64 = image_base64
+                if "," in raw_b64:
+                    raw_b64 = raw_b64.split(",", 1)[1]
+                frame_bytes = base64.b64decode(raw_b64)
+            except Exception as e:
+                logger.warning("Failed to decode user-provided base64 frame: %s", e)
+                frame_bytes = None
+
+        if not frame_bytes or len(frame_bytes) < 100:
+            # Pull frame from camera-backend or local stream
+            frame_bytes, _ = await self.camera_service_client.get_snapshot_bytes(
+                camera_id=camera_id,
+                camera_name=cam.name,
+            )
+
+        # 3. Execute Gemini Vision AI inference
+        raw_text, model_used, elapsed, tokens = await self.gemini_client.analyze_image_bytes(
+            image_bytes=frame_bytes,
+            camera_angle=cam.camera_angle or "elevated",
+            location_hint=f"{cam.name}, {cam.location}",
+        )
+
+        # 4. Parse VLRDR response schema
+        reading: FloodReading = FloodReadingParser.parse(
+            raw_text=raw_text,
+            camera_id=cam.id,
+        )
+
+        # 5. Persist reading to database
+        db_reading = FloodReadingDB(
+            camera_id=cam.id,
+            zone_id=cam.zone_id,
+            timestamp=datetime.now(timezone.utc),
+            flood_detected=reading.flood_detected,
+            confidence_score=reading.confidence_score,
+            depth_level=reading.depth_level,
+            depth_estimate_cm_min=reading.depth_estimate_cm_min,
+            depth_estimate_cm_max=reading.depth_estimate_cm_max,
+            reference_objects=json.dumps(reading.reference_objects_used or []),
+            reasoning=reading.reasoning,
+            alert_message=reading.alert_message,
+        )
+        session.add(db_reading)
+        cam.last_polled_at = datetime.now(timezone.utc)
+        await session.flush()
+
+        # 6. Re-aggregate zone level status if zone exists
+        if cam.zone_id:
+            zone = await session.get(FloodZone, cam.zone_id)
+            if zone:
+                recent_stmt = (
+                    select(FloodReadingDB)
+                    .where(FloodReadingDB.zone_id == cam.zone_id)
+                    .order_by(desc(FloodReadingDB.timestamp))
+                    .limit(10)
+                )
+                r_res = await session.execute(recent_stmt)
+                recent_readings = list(r_res.scalars().all())
+                await ZoneAggregator.aggregate_zone(session, zone, recent_readings)
+
+        await session.commit()
+
+        return AnalysisResponse(
+            success=True,
+            reading=reading,
+            inference_time_ms=round(elapsed * 1000, 1),
+            model_used=model_used,
+            tokens_used=tokens,
+        )
+
+    async def analyze_batch(
+        self,
+        session: AsyncSession,
+        camera_ids: Optional[List[str]] = None,
+        district: Optional[str] = None,
+        limit: int = 10,
+    ) -> Dict[str, Any]:
+        """Runs flood analysis on a batch of cameras with concurrency control."""
+        targets = []
+
+        if camera_ids:
+            # Use specific cameras requested
+            targets = camera_ids[:limit]
+        else:
+            # Fetch candidates from camera-backend or local DB
+            remote_cams = await self.camera_service_client.list_cameras(
+                district=district,
+                limit=limit * 2,
+            )
+            if remote_cams:
+                targets = [c["id"] for c in remote_cams[:limit]]
+            else:
+                stmt = select(Camera).where(Camera.status != "OFFLINE").limit(limit)
+                res = await session.execute(stmt)
+                targets = [c.id for c in res.scalars().all()]
+
+        if not targets:
+            return {
+                "total_analyzed": 0,
+                "flooded_count": 0,
+                "max_depth_cm": 0,
+                "results": [],
+            }
+
+        semaphore = asyncio.Semaphore(3)  # Max 3 concurrent requests to avoid rate limits
+        results = []
+
+        async def _worker(cam_id: str):
+            async with semaphore:
+                try:
+                    res = await self.analyze_single_camera(session, cam_id)
+                    return {
+                        "camera_id": cam_id,
+                        "success": True,
+                        "depth_level": res.reading.depth_level,
+                        "depth_cm_min": res.reading.depth_estimate_cm_min,
+                        "depth_cm_max": res.reading.depth_estimate_cm_max,
+                        "flood_detected": res.reading.flood_detected,
+                        "confidence_score": res.reading.confidence_score,
+                        "alert_message": res.reading.alert_message,
+                        "inference_time_ms": res.inference_time_ms,
+                    }
+                except Exception as exc:
+                    logger.error("Error analyzing camera %s in batch: %s", cam_id, exc)
+                    return {
+                        "camera_id": cam_id,
+                        "success": False,
+                        "error": str(exc),
+                    }
+
+        tasks = [_worker(cid) for cid in targets]
+        results = await asyncio.gather(*tasks)
+
+        successful = [r for r in results if r.get("success")]
+        flooded_count = sum(1 for r in successful if r.get("flood_detected"))
+        max_depth = max([r.get("depth_cm_max", 0) for r in successful] or [0])
+
+        return {
+            "total_analyzed": len(successful),
+            "flooded_count": flooded_count,
+            "max_depth_cm": max_depth,
+            "results": results,
+        }
