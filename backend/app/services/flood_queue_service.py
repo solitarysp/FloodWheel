@@ -246,7 +246,7 @@ class FloodAnalysisQueue:
                         "camera_name": camera_name or camera_id,
                         "success": True,
                         "skipped": True,
-                        "reason": "Ảnh mặc định / Chưa có tín hiệu thực tế (bỏ qua quét)",
+                        "reason": "Đang chờ ảnh từ cam",
                         "flood_detected": False,
                         "depth_level": 0,
                         "depth_cm_min": 0,

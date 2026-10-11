@@ -128,19 +128,42 @@ class FloodAnalysisService:
                 frame_bytes = None
 
         if not frame_bytes or len(frame_bytes) < 100:
-            # Pull frame from camera-backend or local stream
-            frame_bytes, _ = await self.camera_service_client.get_snapshot_bytes(
+            # Pull frame from camera-backend, persistent disk, or local stream
+            frame_bytes, _ = await CameraStreamService.get_snapshot_bytes(
+                stream_url=cam.stream_url if cam else "",
                 camera_id=camera_id,
-                camera_name=cam.name,
+                camera_name=cam.name if cam else camera_id,
+                force_refresh=force_refresh,
             )
 
         # Check if frame is a default / synthetic fallback frame or error placeholder image
         if not frame_bytes or ImageValidator.is_default_or_invalid(frame_bytes):
             logger.info(
-                "Camera %s is returning default/synthetic placeholder frame (%d bytes). Skipping AI scan.",
+                "Camera %s is returning default/synthetic placeholder frame (%d bytes). Skipping AI scan, waiting for real feed.",
                 camera_id,
                 len(frame_bytes) if frame_bytes else 0,
             )
+            # Record reading so that UI shows "Đang chờ ảnh từ cam"
+            db_reading = FloodReadingDB(
+                camera_id=cam.id,
+                zone_id=cam.zone_id,
+                timestamp=datetime.now(timezone.utc),
+                flood_detected=False,
+                depth_level=0,
+                depth_estimate_cm_min=0,
+                depth_estimate_cm_max=0,
+                confidence_score=0.0,
+                model_used="skipped-default-image",
+                alert_message="Đang chờ ảnh từ cam",
+                reasoning="Ảnh camera hiện đang là ảnh giả lập / placeholder. Bỏ qua phân tích AI để tránh báo sai, đang chờ ảnh thực tế từ camera.",
+                raw_response="SKIPPED_DEFAULT_MOCK_IMAGE",
+            )
+            session.add(db_reading)
+            try:
+                await session.commit()
+            except Exception:
+                await session.rollback()
+
             return AnalysisResponse(
                 success=False,
                 reading=FloodReading(
@@ -150,8 +173,8 @@ class FloodAnalysisService:
                     depth_estimate_cm_min=0,
                     depth_estimate_cm_max=0,
                     confidence_score=0.0,
-                    alert_message="Ảnh camera là ảnh mặc định (chưa có tín hiệu thực tế). Tạm thời bỏ qua quét AI.",
-                    reasoning="Default synthetic frame or placeholder error image detected. AI analysis skipped to avoid false readings.",
+                    alert_message="Đang chờ ảnh từ cam",
+                    reasoning="Ảnh camera hiện đang là ảnh giả lập / placeholder. Bỏ qua phân tích AI để tránh báo sai, đang chờ ảnh thực tế từ camera.",
                     reference_objects_used=[],
                 ),
                 inference_time_ms=0.0,

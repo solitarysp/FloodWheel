@@ -5,6 +5,7 @@ import {
   Sparkles,
   MapPin,
   AlertTriangle,
+  Clock,
 } from "lucide-react";
 
 export interface FloodReadingSummary {
@@ -102,21 +103,28 @@ export const CameraCard: React.FC<CameraCardProps> = ({
 
             {/* Flood Status Badge */}
             {camera.latest_reading ? (
-              <span
-                className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-bold ${
-                  (camera.latest_reading.depth_level || 0) === 0
-                    ? "bg-emerald-100 text-emerald-800 border border-emerald-300"
-                    : (camera.latest_reading.depth_level || 0) <= 2
-                    ? "bg-amber-100 text-amber-800 border border-amber-300"
-                    : "bg-rose-100 text-rose-800 border border-rose-300 animate-pulse"
-                }`}
-              >
-                <span>
-                  {(camera.latest_reading.depth_level || 0) === 0
-                    ? "Khô ráo (0cm)"
-                    : `Ngập L${camera.latest_reading.depth_level}: ${camera.latest_reading.depth_estimate_cm_max}cm`}
+              camera.latest_reading.alert_message === "Đang chờ ảnh từ cam" ? (
+                <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-semibold bg-slate-100 text-slate-600 border border-slate-300">
+                  <Clock className="w-3 h-3 text-slate-400" />
+                  <span>Đang chờ ảnh từ cam</span>
                 </span>
-              </span>
+              ) : (
+                <span
+                  className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-bold ${
+                    (camera.latest_reading.depth_level || 0) === 0
+                      ? "bg-emerald-100 text-emerald-800 border border-emerald-300"
+                      : (camera.latest_reading.depth_level || 0) <= 2
+                      ? "bg-amber-100 text-amber-800 border border-amber-300"
+                      : "bg-rose-100 text-rose-800 border border-rose-300 animate-pulse"
+                  }`}
+                >
+                  <span>
+                    {(camera.latest_reading.depth_level || 0) === 0
+                      ? "Khô ráo (0cm)"
+                      : `Ngập L${camera.latest_reading.depth_level}: ${camera.latest_reading.depth_estimate_cm_max}cm`}
+                  </span>
+                </span>
+              )
             ) : (
               <span className="text-[11px] bg-slate-100 text-slate-500 px-2 py-0.5 rounded-full border border-slate-200">
                 Chưa phân tích

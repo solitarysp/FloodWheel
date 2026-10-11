@@ -14,6 +14,7 @@ import {
   AlertTriangle,
   CheckCircle2,
   SlidersHorizontal,
+  Clock,
 } from "lucide-react";
 
 interface CameraMapProps {
@@ -491,21 +492,28 @@ export const CameraMap: React.FC<CameraMapProps> = ({
                 </span>
 
                 {selectedCamera.latest_reading ? (
-                  <span
-                    className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold ${
-                      (selectedCamera.latest_reading.depth_level || 0) === 0
-                        ? "bg-emerald-500/20 text-emerald-300 border border-emerald-400/40"
-                        : (selectedCamera.latest_reading.depth_level || 0) <= 2
-                        ? "bg-amber-500/20 text-amber-300 border border-amber-400/40"
-                        : "bg-rose-500/20 text-rose-300 border border-rose-400/40 animate-pulse"
-                    }`}
-                  >
-                    <span>
-                      {(selectedCamera.latest_reading.depth_level || 0) === 0
-                        ? "KHÔ RÁO (0cm)"
-                        : `NGẬP CẤP ${selectedCamera.latest_reading.depth_level}: ${selectedCamera.latest_reading.depth_estimate_cm_max}cm`}
+                  selectedCamera.latest_reading.alert_message === "Đang chờ ảnh từ cam" ? (
+                    <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-semibold bg-slate-800 text-slate-300 border border-slate-700">
+                      <Clock className="w-2.5 h-2.5 text-slate-400" />
+                      <span>ĐANG CHỜ ẢNH TỪ CAM</span>
                     </span>
-                  </span>
+                  ) : (
+                    <span
+                      className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold ${
+                        (selectedCamera.latest_reading.depth_level || 0) === 0
+                          ? "bg-emerald-500/20 text-emerald-300 border border-emerald-400/40"
+                          : (selectedCamera.latest_reading.depth_level || 0) <= 2
+                          ? "bg-amber-500/20 text-amber-300 border border-amber-400/40"
+                          : "bg-rose-500/20 text-rose-300 border border-rose-400/40 animate-pulse"
+                      }`}
+                    >
+                      <span>
+                        {(selectedCamera.latest_reading.depth_level || 0) === 0
+                          ? "KHÔ RÁO (0cm)"
+                          : `NGẬP CẤP ${selectedCamera.latest_reading.depth_level}: ${selectedCamera.latest_reading.depth_estimate_cm_max}cm`}
+                      </span>
+                    </span>
+                  )
                 ) : (
                   <span className="text-[10px] bg-slate-800 text-slate-400 px-2 py-0.5 rounded-full border border-slate-700">
                     Chưa quét AI

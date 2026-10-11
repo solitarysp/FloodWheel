@@ -32,6 +32,8 @@ import {
   ExternalLink,
   Image as ImageIcon,
   X,
+  Sparkles,
+  Flame,
 } from "lucide-react";
 
 export default function AdminPage() {
@@ -61,6 +63,9 @@ export default function AdminPage() {
   const [cameraViewMode, setCameraViewMode] = useState<"table" | "grid">("table");
   const [previewCameraSnapshot, setPreviewCameraSnapshot] = useState<any>(null);
   const [cacheBuster, setCacheBuster] = useState<number>(Date.now());
+  const [selectedCameraIds, setSelectedCameraIds] = useState<string[]>([]);
+  const [analyzingCameraId, setAnalyzingCameraId] = useState<string | null>(null);
+  const [isBatchAnalyzing, setIsBatchAnalyzing] = useState<boolean>(false);
 
   const apiUrl = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
 
@@ -212,6 +217,95 @@ export default function AdminPage() {
       showToast("error", err.message);
     } finally {
       setActionLoading(null);
+    }
+  };
+
+  // Camera selection handlers
+  const toggleSelectCamera = (cameraId: string) => {
+    setSelectedCameraIds((prev) =>
+      prev.includes(cameraId) ? prev.filter((id) => id !== cameraId) : [...prev, cameraId]
+    );
+  };
+
+  const toggleSelectAll = () => {
+    const filteredIds = filteredCameras.map((c) => c.id);
+    const allSelected =
+      filteredIds.length > 0 && filteredIds.every((id) => selectedCameraIds.includes(id));
+    if (allSelected) {
+      setSelectedCameraIds((prev) => prev.filter((id) => !filteredIds.includes(id)));
+    } else {
+      const combined = Array.from(new Set([...selectedCameraIds, ...filteredIds]));
+      setSelectedCameraIds(combined);
+    }
+  };
+
+  const handleSelectNone = () => {
+    setSelectedCameraIds([]);
+  };
+
+  // On-demand AI Analysis actions
+  const handleAnalyzeCamera = async (cameraId: string, forceRefresh: boolean = true) => {
+    setAnalyzingCameraId(cameraId);
+    try {
+      const resp = await adminFetch(
+        `${apiUrl}/api/v1/admin/cameras/${cameraId}/analyze?force_refresh=${forceRefresh}`,
+        { method: "POST" }
+      );
+      const data = await resp.json();
+      if (resp.ok) {
+        if (data.skipped) {
+          showToast("success", `Camera ${cameraId}: Đang chờ ảnh từ cam (ảnh mock, bỏ qua AI)`);
+        } else {
+          showToast(
+            "success",
+            `Phân tích hoàn tất ${cameraId}: Mức ${data.depth_level ?? 0} (${data.depth_cm_max || 0} cm)`
+          );
+        }
+        setCacheBuster(Date.now());
+        await fetchDashboardData();
+      } else {
+        throw new Error(data.detail || "Lỗi khi phân tích camera.");
+      }
+    } catch (err: any) {
+      showToast("error", err.message);
+    } finally {
+      setAnalyzingCameraId(null);
+    }
+  };
+
+  const handleBatchAnalyze = async (targetCameraIds?: string[]) => {
+    const idsToAnalyze = targetCameraIds || selectedCameraIds;
+    if (idsToAnalyze.length === 0) {
+      showToast("error", "Vui lòng chọn ít nhất 1 camera để phân tích AI.");
+      return;
+    }
+
+    setIsBatchAnalyzing(true);
+    try {
+      const resp = await adminFetch(`${apiUrl}/api/v1/admin/cameras/analyze-batch`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          camera_ids: idsToAnalyze,
+          force_refresh: true,
+        }),
+      });
+      const data = await resp.json();
+      if (resp.ok) {
+        showToast(
+          "success",
+          `Hoàn tất quét ${idsToAnalyze.length} camera: ${data.analyzed_count} thành công, ${data.skipped_count} chờ ảnh thật, ${data.error_count} lỗi.`
+        );
+        setSelectedCameraIds([]);
+        setCacheBuster(Date.now());
+        await fetchDashboardData();
+      } else {
+        throw new Error(data.detail || "Lỗi khi phân tích hàng loạt.");
+      }
+    } catch (err: any) {
+      showToast("error", err.message);
+    } finally {
+      setIsBatchAnalyzing(false);
     }
   };
 
@@ -658,6 +752,42 @@ export default function AdminPage() {
                       </button>
                     </div>
 
+                    {/* HOT AI Analysis Button */}
+                    <button
+                      onClick={() => handleBatchAnalyze()}
+                      disabled={isBatchAnalyzing || selectedCameraIds.length === 0}
+                      className={`px-3.5 py-2 rounded-xl text-xs font-bold transition flex items-center gap-1.5 shadow-sm shrink-0 ${
+                        selectedCameraIds.length > 0
+                          ? "bg-gradient-to-r from-amber-500 via-orange-500 to-rose-500 hover:from-amber-600 hover:to-rose-600 text-white shadow-orange-500/30 ring-2 ring-orange-400/40 animate-pulse"
+                          : "bg-slate-100 text-slate-400 border border-slate-200 cursor-not-allowed"
+                      }`}
+                      title={
+                        selectedCameraIds.length > 0
+                          ? `Kích hoạt phân tích AI ngay lập tức cho ${selectedCameraIds.length} camera đã chọn`
+                          : "Chọn camera bằng checkbox để kích hoạt phân tích AI"
+                      }
+                    >
+                      <Flame className={`w-3.5 h-3.5 ${isBatchAnalyzing ? "animate-bounce text-yellow-200" : "text-amber-200"}`} />
+                      <span>
+                        {isBatchAnalyzing
+                          ? "Đang quét AI..."
+                          : selectedCameraIds.length > 0
+                          ? `🔥 Phân Tích AI (${selectedCameraIds.length})`
+                          : "🔥 Phân Tích AI"}
+                      </span>
+                    </button>
+
+                    {/* Scan All Filtered Cameras Button */}
+                    <button
+                      onClick={() => handleBatchAnalyze(filteredCameras.map((c) => c.id))}
+                      disabled={isBatchAnalyzing || filteredCameras.length === 0}
+                      title={`Quét AI toàn bộ ${filteredCameras.length} camera đang hiển thị`}
+                      className="p-2 rounded-xl border border-slate-200 text-slate-600 hover:bg-orange-50 hover:text-orange-600 hover:border-orange-200 transition text-xs font-semibold flex items-center gap-1.5 shrink-0"
+                    >
+                      <Sparkles className="w-3.5 h-3.5 text-orange-500" />
+                      <span className="hidden xl:inline">Quét Tất Cả ({filteredCameras.length})</span>
+                    </button>
+
                     <button
                       onClick={() => setCacheBuster(Date.now())}
                       title="Làm mới toàn bộ ảnh chụp camera"
@@ -677,6 +807,34 @@ export default function AdminPage() {
                   </div>
                 </div>
 
+                {/* Active Selection Banner */}
+                {selectedCameraIds.length > 0 && (
+                  <div className="mb-4 px-4 py-2.5 rounded-2xl bg-amber-50 border border-amber-200/90 flex flex-wrap items-center justify-between gap-3 text-xs animate-in fade-in duration-200">
+                    <div className="flex items-center gap-2 text-amber-900 font-semibold">
+                      <span className="w-2 h-2 rounded-full bg-amber-500 animate-ping" />
+                      <span>
+                        Đang chọn <strong className="text-orange-600 font-bold">{selectedCameraIds.length}</strong> camera để thao tác phân tích AI
+                      </span>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <button
+                        onClick={() => handleBatchAnalyze()}
+                        disabled={isBatchAnalyzing}
+                        className="px-3 py-1.5 rounded-xl bg-gradient-to-r from-amber-500 to-rose-500 hover:from-amber-600 hover:to-rose-600 text-white font-bold shadow-xs transition flex items-center gap-1.5"
+                      >
+                        <Sparkles className={`w-3.5 h-3.5 ${isBatchAnalyzing ? "animate-spin" : ""}`} />
+                        <span>{isBatchAnalyzing ? "Đang xử lý..." : `🔥 Bắt Đầu Phân Tích (${selectedCameraIds.length})`}</span>
+                      </button>
+                      <button
+                        onClick={handleSelectNone}
+                        className="px-2.5 py-1.5 rounded-xl bg-white text-slate-600 hover:bg-slate-100 border border-slate-200 transition font-medium text-[11px]"
+                      >
+                        Bỏ chọn
+                      </button>
+                    </div>
+                  </div>
+                )}
+
                 {/* Camera List / Grid */}
                 {filteredCameras.length === 0 ? (
                   <div className="text-center py-12 text-xs text-slate-400">
@@ -687,6 +845,18 @@ export default function AdminPage() {
                     <table className="w-full text-left text-xs">
                       <thead>
                         <tr className="border-b border-slate-200 text-slate-400 font-semibold uppercase tracking-wider">
+                          <th className="pb-3 w-8">
+                            <input
+                              type="checkbox"
+                              checked={
+                                filteredCameras.length > 0 &&
+                                filteredCameras.every((c) => selectedCameraIds.includes(c.id))
+                              }
+                              onChange={toggleSelectAll}
+                              className="w-4 h-4 rounded text-orange-600 focus:ring-orange-500 border-slate-300 cursor-pointer"
+                              title="Chọn tất cả camera"
+                            />
+                          </th>
                           <th className="pb-3 w-32">Ảnh Lưu Trữ</th>
                           <th className="pb-3">Tên Camera</th>
                           <th className="pb-3">Vị Trí / Quận</th>
@@ -697,7 +867,21 @@ export default function AdminPage() {
                       </thead>
                       <tbody className="divide-y divide-slate-100 font-medium">
                         {filteredCameras.map((cam) => (
-                          <tr key={cam.id} className="hover:bg-slate-50/50">
+                          <tr
+                            key={cam.id}
+                            className={`hover:bg-slate-50/50 transition-colors ${
+                              selectedCameraIds.includes(cam.id) ? "bg-amber-50/40" : ""
+                            }`}
+                          >
+                            {/* Checkbox Column */}
+                            <td className="py-3 pr-2">
+                              <input
+                                type="checkbox"
+                                checked={selectedCameraIds.includes(cam.id)}
+                                onChange={() => toggleSelectCamera(cam.id)}
+                                className="w-4 h-4 rounded text-orange-600 focus:ring-orange-500 border-slate-300 cursor-pointer"
+                              />
+                            </td>
                             {/* Snapshot Thumbnail Column */}
                             <td className="py-3 pr-4">
                               <div
@@ -743,7 +927,15 @@ export default function AdminPage() {
                               </span>
                             </td>
                             <td className="py-3">
-                              {cam.latest_reading ? (
+                              {cam.latest_reading?.alert_message === "Đang chờ ảnh từ cam" ? (
+                                <span
+                                  className="px-2.5 py-1 rounded-full text-[10px] font-bold bg-slate-100 text-slate-600 border border-slate-200/80 inline-flex items-center gap-1.5 shadow-xs"
+                                  title="Ảnh camera là ảnh mock/mất tín hiệu, AI tạm bỏ qua để chờ ảnh thực tế từ camera"
+                                >
+                                  <Clock className="w-3 h-3 text-slate-400" />
+                                  <span>Đang chờ ảnh từ cam</span>
+                                </span>
+                              ) : cam.latest_reading ? (
                                 <span
                                   className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${
                                     cam.latest_reading.depth_level >= 3
@@ -761,6 +953,25 @@ export default function AdminPage() {
                             </td>
                             <td className="py-3 text-right">
                               <div className="flex items-center justify-end gap-1.5">
+                                {/* Single Camera AI Scan */}
+                                <button
+                                  onClick={() => handleAnalyzeCamera(cam.id)}
+                                  disabled={analyzingCameraId === cam.id}
+                                  title="Phân tích AI ngay cho camera này"
+                                  className={`px-2.5 py-1 rounded-lg text-[10px] font-bold transition inline-flex items-center gap-1 shadow-xs ${
+                                    analyzingCameraId === cam.id
+                                      ? "bg-amber-100 text-amber-700"
+                                      : "bg-gradient-to-r from-amber-500 to-orange-500 hover:from-amber-600 hover:to-orange-600 text-white shadow-orange-500/20"
+                                  }`}
+                                >
+                                  <Sparkles
+                                    className={`w-3 h-3 ${
+                                      analyzingCameraId === cam.id ? "animate-spin" : ""
+                                    }`}
+                                  />
+                                  <span>{analyzingCameraId === cam.id ? "Đang quét..." : "Quét AI"}</span>
+                                </button>
+
                                 <button
                                   onClick={() => setPreviewCameraSnapshot(cam)}
                                   title="Xem ảnh chi tiết"
@@ -813,7 +1024,11 @@ export default function AdminPage() {
                     {filteredCameras.map((cam) => (
                       <div
                         key={cam.id}
-                        className="bg-white rounded-2xl border border-slate-200/80 shadow-xs hover:shadow-md transition-all overflow-hidden flex flex-col"
+                        className={`bg-white rounded-2xl border transition-all overflow-hidden flex flex-col ${
+                          selectedCameraIds.includes(cam.id)
+                            ? "border-orange-400 ring-2 ring-orange-300 shadow-md"
+                            : "border-slate-200/80 shadow-xs hover:shadow-md"
+                        }`}
                       >
                         {/* Snapshot viewport */}
                         <div
@@ -832,8 +1047,22 @@ export default function AdminPage() {
                             className="w-full h-full object-cover transition-transform duration-300 group-hover:scale-105"
                           />
 
+                          {/* Selection Checkbox */}
+                          <div
+                            className="absolute top-2.5 right-2.5 z-20"
+                            onClick={(e) => e.stopPropagation()}
+                          >
+                            <input
+                              type="checkbox"
+                              checked={selectedCameraIds.includes(cam.id)}
+                              onChange={() => toggleSelectCamera(cam.id)}
+                              className="w-4 h-4 rounded text-orange-600 focus:ring-orange-500 border-white/80 cursor-pointer shadow-md bg-white/95"
+                              title="Chọn camera để quét hàng loạt"
+                            />
+                          </div>
+
                           {/* Status Badge overlay */}
-                          <div className="absolute top-2.5 left-2.5 flex items-center gap-1.5">
+                          <div className="absolute top-2.5 left-2.5 flex items-center gap-1.5 flex-wrap max-w-[80%]">
                             <span
                               className={`px-2 py-0.5 rounded-full font-bold text-[10px] shadow-xs backdrop-blur-xs ${
                                 cam.status === "ONLINE"
@@ -845,7 +1074,12 @@ export default function AdminPage() {
                             >
                               {cam.status}
                             </span>
-                            {cam.latest_reading && (
+                            {cam.latest_reading?.alert_message === "Đang chờ ảnh từ cam" ? (
+                              <span className="px-2 py-0.5 rounded-full font-bold text-[10px] shadow-xs backdrop-blur-xs bg-slate-900/90 text-slate-200 border border-white/20 flex items-center gap-1">
+                                <Clock className="w-2.5 h-2.5 text-slate-300" />
+                                <span>Đang chờ ảnh từ cam</span>
+                              </span>
+                            ) : cam.latest_reading ? (
                               <span
                                 className={`px-2 py-0.5 rounded-full font-bold text-[10px] shadow-xs ${
                                   cam.latest_reading.depth_level >= 3
@@ -857,7 +1091,7 @@ export default function AdminPage() {
                               >
                                 Level {cam.latest_reading.depth_level}
                               </span>
-                            )}
+                            ) : null}
                           </div>
 
                           {/* Hover zoom icon */}
@@ -897,6 +1131,25 @@ export default function AdminPage() {
                           {/* Action buttons */}
                           <div className="pt-3 mt-3 border-t border-slate-100 flex items-center justify-between gap-2">
                             <div className="flex items-center gap-1.5 flex-wrap">
+                              {/* Quét AI */}
+                              <button
+                                onClick={() => handleAnalyzeCamera(cam.id)}
+                                disabled={analyzingCameraId === cam.id}
+                                title="Phân tích AI ngay cho camera này"
+                                className={`px-2 py-1 rounded-lg text-[10px] font-bold transition flex items-center gap-1 ${
+                                  analyzingCameraId === cam.id
+                                    ? "bg-amber-100 text-amber-700"
+                                    : "bg-gradient-to-r from-amber-500 to-orange-500 hover:from-amber-600 hover:to-orange-600 text-white shadow-xs shadow-orange-500/20"
+                                }`}
+                              >
+                                <Sparkles
+                                  className={`w-3 h-3 ${
+                                    analyzingCameraId === cam.id ? "animate-spin" : ""
+                                  }`}
+                                />
+                                <span>{analyzingCameraId === cam.id ? "Đang quét..." : "Quét AI"}</span>
+                              </button>
+
                               {cam.status !== "ONLINE" && (
                                 <button
                                   onClick={() => handleUpdateCameraStatus(cam.id, "ONLINE")}
@@ -1142,6 +1395,25 @@ export default function AdminPage() {
               </div>
 
               <div className="flex items-center gap-2">
+                {/* Analyze Now Button */}
+                <button
+                  onClick={() => handleAnalyzeCamera(previewCameraSnapshot.id)}
+                  disabled={analyzingCameraId === previewCameraSnapshot.id}
+                  className="px-3 py-1.5 rounded-xl bg-gradient-to-r from-amber-500 via-orange-500 to-rose-500 hover:from-amber-600 hover:to-rose-600 text-white font-bold text-xs shadow-md shadow-orange-500/20 transition flex items-center gap-1.5"
+                  title="Chạy phân tích AI ngay cho ảnh chụp camera này"
+                >
+                  <Sparkles
+                    className={`w-3.5 h-3.5 ${
+                      analyzingCameraId === previewCameraSnapshot.id ? "animate-spin" : ""
+                    }`}
+                  />
+                  <span>
+                    {analyzingCameraId === previewCameraSnapshot.id
+                      ? "Đang quét AI..."
+                      : "🔥 Phân Tích AI Ngay"}
+                  </span>
+                </button>
+
                 <button
                   onClick={() => setCacheBuster(Date.now())}
                   title="Làm mới ảnh chụp"
@@ -1204,7 +1476,12 @@ export default function AdminPage() {
                 >
                   {previewCameraSnapshot.status}
                 </span>
-                {previewCameraSnapshot.latest_reading ? (
+                {previewCameraSnapshot.latest_reading?.alert_message === "Đang chờ ảnh từ cam" ? (
+                  <span className="px-2.5 py-1 rounded-full font-bold bg-slate-100 text-slate-600 border border-slate-300 flex items-center gap-1.5">
+                    <Clock className="w-3.5 h-3.5 text-slate-400" />
+                    Đang chờ ảnh từ cam
+                  </span>
+                ) : previewCameraSnapshot.latest_reading ? (
                   <span
                     className={`px-2.5 py-1 rounded-full font-bold ${
                       previewCameraSnapshot.latest_reading.depth_level >= 3

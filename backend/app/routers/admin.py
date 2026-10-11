@@ -9,9 +9,10 @@ Provides administration endpoints for:
 6. Real-time aggregated system overview & telemetry.
 """
 
+import logging
 from datetime import datetime, timedelta, timezone
 from typing import Any, Dict, List, Optional
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, Query, status
 from pydantic import BaseModel, Field
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -24,9 +25,12 @@ from app.models.db_models import Alert, Camera, FloodReadingDB, FloodZone, Opera
 from app.services.auth_service import auth_service
 from app.services.camera_registry import CameraRegistry
 from app.services.camera_stream_service import CameraStreamService
+from app.services.flood_analysis_service import FloodAnalysisService
 from app.services.flood_queue_service import flood_queue_service
 
+logger = logging.getLogger("floodwheel.admin_router")
 router = APIRouter(prefix="/admin", tags=["Admin Operations"])
+flood_analysis_service = FloodAnalysisService()
 
 
 # ===================== SCHEMAS =====================
@@ -73,6 +77,11 @@ class CameraStatusUpdateRequest(BaseModel):
 class QueueConfigRequest(BaseModel):
     interval_minutes: Optional[int] = Field(None, ge=1, le=120)
     max_cameras_per_cycle: Optional[int] = Field(None, ge=1, le=200)
+
+
+class CameraBatchAnalyzeRequest(BaseModel):
+    camera_ids: List[str] = Field(..., min_length=1, max_length=100, description="Danh sách ID camera cần phân tích")
+    force_refresh: bool = Field(True, description="Bắt buộc quét mới, bỏ qua cache AI gần nhất")
 
 
 # ===================== AUTHENTICATION =====================
@@ -295,6 +304,102 @@ async def delete_camera(
         "success": True,
         "camera_id": camera_id,
         "message": f"Đã xóa camera '{camera_id}' thành công.",
+    }
+
+
+@router.post("/cameras/analyze-batch")
+async def admin_analyze_batch_cameras(
+    req: CameraBatchAnalyzeRequest,
+    db: AsyncSession = Depends(get_db),
+    current_admin: AdminUser = Depends(get_current_admin),
+):
+    """Triggers immediate on-demand AI flood analysis for 1 or N specified cameras."""
+    results = []
+    analyzed_count = 0
+    skipped_count = 0
+    error_count = 0
+
+    for cam_id in req.camera_ids:
+        try:
+            res = await flood_analysis_service.analyze_single_camera(
+                session=db,
+                camera_id=cam_id,
+                force_refresh=req.force_refresh,
+            )
+            is_skipped = (res.model_used == "skipped-default-image")
+            if is_skipped:
+                skipped_count += 1
+                results.append({
+                    "camera_id": cam_id,
+                    "success": True,
+                    "skipped": True,
+                    "reason": "Đang chờ ảnh từ cam",
+                    "depth_level": 0,
+                    "water_depth_cm": 0,
+                    "alert_message": res.reading.alert_message,
+                })
+            else:
+                analyzed_count += 1
+                results.append({
+                    "camera_id": cam_id,
+                    "success": True,
+                    "skipped": False,
+                    "depth_level": res.reading.depth_level,
+                    "water_depth_cm": (
+                        getattr(res.reading, "water_depth_cm", None)
+                        or res.reading.depth_estimate_cm_max
+                        or 0
+                    ),
+                    "depth_cm_min": res.reading.depth_estimate_cm_min,
+                    "depth_cm_max": res.reading.depth_estimate_cm_max,
+                    "alert_message": res.reading.alert_message,
+                    "model_used": res.model_used,
+                })
+        except Exception as exc:
+            logger.error("Failed to analyze camera %s in batch: %s", cam_id, exc)
+            error_count += 1
+            results.append({
+                "camera_id": cam_id,
+                "success": False,
+                "skipped": False,
+                "error": str(exc),
+            })
+
+    return {
+        "success": True,
+        "total": len(req.camera_ids),
+        "analyzed_count": analyzed_count,
+        "skipped_count": skipped_count,
+        "error_count": error_count,
+        "results": results,
+    }
+
+
+@router.post("/cameras/{camera_id}/analyze")
+async def admin_analyze_single_camera(
+    camera_id: str,
+    force_refresh: bool = Query(True, description="Bắt buộc quét mới"),
+    db: AsyncSession = Depends(get_db),
+    current_admin: AdminUser = Depends(get_current_admin),
+):
+    """Triggers immediate on-demand AI flood analysis for a single camera."""
+    res = await flood_analysis_service.analyze_single_camera(
+        session=db,
+        camera_id=camera_id,
+        force_refresh=force_refresh,
+    )
+    is_skipped = (res.model_used == "skipped-default-image")
+    return {
+        "success": True,
+        "camera_id": camera_id,
+        "skipped": is_skipped,
+        "reason": "Đang chờ ảnh từ cam" if is_skipped else None,
+        "depth_level": res.reading.depth_level,
+        "depth_cm_min": res.reading.depth_estimate_cm_min,
+        "depth_cm_max": res.reading.depth_estimate_cm_max,
+        "alert_message": res.reading.alert_message,
+        "model_used": res.model_used,
+        "reading": res.reading.model_dump(mode="json") if hasattr(res.reading, "model_dump") else None,
     }
 
 
