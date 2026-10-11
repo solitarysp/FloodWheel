@@ -37,78 +37,17 @@ class PollingScheduler:
             # 1. Check weather for dynamic rate recommendation
             interval_sec, weather_note = await WeatherClient.get_recommended_polling_interval()
 
-            # 2. Get active cameras
-            stmt = select(Camera).where(Camera.status != "OFFLINE")
-            cam_res = await session.execute(stmt)
-            cameras: List[Camera] = list(cam_res.scalars().all())
-
-            for cam in cameras:
-                # Pull frame
-                raw_bytes, success = await self.frame_puller.pull_frame(cam.stream_url)
-                await CameraRegistry.record_poll_result(session, cam.id, success)
-
-                if not success or not raw_bytes:
-                    continue
-
-                # Apply Privacy Filter (license plate & face blur)
-                safe_bytes, filter_time_ms = PrivacyFilter.apply_filter(raw_bytes)
-
-                # Send to Gemini VLRDR Vision AI
-                raw_text, model, elapsed, tokens = await self.gemini_client.analyze_image_bytes(
-                    image_bytes=safe_bytes,
-                    camera_angle=cam.camera_angle or "elevated",
-                    location_hint=cam.location,
-                )
-
-                reading = FloodReadingParser.parse(
-                    raw_text=raw_text,
-                    camera_id=cam.id,
-                )
-
-                # Persist reading to database
-                db_reading = FloodReadingDB(
-                    camera_id=cam.id,
-                    zone_id=cam.zone_id,
-                    timestamp=datetime.now(timezone.utc),
-                    flood_detected=reading.flood_detected,
-                    confidence_score=reading.confidence_score,
-                    depth_level=reading.depth_level,
-                    depth_estimate_cm_min=reading.depth_estimate_cm_min,
-                    depth_estimate_cm_max=reading.depth_estimate_cm_max,
-                    reference_objects=json.dumps(reading.reference_objects_used),
-                    reasoning=reading.reasoning,
-                    alert_message=reading.alert_message,
-                )
-                session.add(db_reading)
-                results.append({
-                    "camera_id": cam.id,
-                    "depth_level": reading.depth_level,
-                    "depth_cm": f"{reading.depth_estimate_cm_min}-{reading.depth_estimate_cm_max}cm",
-                    "inference_sec": round(elapsed, 2),
-                })
-
-            await session.commit()
-
-            # 3. Aggregate each zone
-            zones_stmt = select(FloodZone)
-            z_res = await session.execute(zones_stmt)
-            zones = list(z_res.scalars().all())
-
-            for zone in zones:
-                readings_stmt = (
-                    select(FloodReadingDB)
-                    .where(FloodReadingDB.zone_id == zone.id)
-                    .order_by(FloodReadingDB.timestamp.desc())
-                    .limit(10)
-                )
-                r_res = await session.execute(readings_stmt)
-                recent_readings = list(r_res.scalars().all())
-                await ZoneAggregator.aggregate_zone(session, zone, recent_readings)
+            # 2. Run batch analysis across cameras
+            from app.services.flood_analysis_service import FloodAnalysisService
+            analysis_svc = FloodAnalysisService()
+            batch_res = await analysis_svc.analyze_batch(session=session, limit=10)
 
         return {
             "cycle_timestamp": cycle_start.isoformat(),
             "weather_condition": weather_note,
             "recommended_interval_sec": interval_sec,
-            "cameras_polled": len(results),
-            "results_summary": results,
+            "cameras_polled": batch_res.get("total_analyzed", 0),
+            "flooded_count": batch_res.get("flooded_count", 0),
+            "max_depth_cm": batch_res.get("max_depth_cm", 0),
+            "results_summary": batch_res.get("results", []),
         }

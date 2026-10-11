@@ -66,10 +66,11 @@ class GeminiClient:
         # Candidate models with automatic fallbacks
         candidate_models = [
             self.primary_model,
-            "gemini-3.8-flash",
-            "models/gemini-3.8-flash",
-            self.fallback_model,
             "gemini-2.5-flash",
+            "gemini-2.0-flash",
+            "gemini-1.5-flash",
+            "gemini-3.8-flash",
+            self.fallback_model,
         ]
         models_to_try = []
         for m in candidate_models:

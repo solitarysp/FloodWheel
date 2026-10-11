@@ -4,21 +4,24 @@ import json
 from typing import List, Optional
 from fastapi import APIRouter, Depends, HTTPException, Query, Response, status
 from pydantic import BaseModel, Field
+from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.db.session import get_db
-from app.models.camera import CameraCreate, CameraResponse
+from app.models.camera import CameraCreate, CameraResponse, FloodReadingSummary
 from app.models.db_models import FloodReadingDB, FloodZone
 from app.models.flood_reading import AnalysisResponse
 from app.services.camera_registry import CameraRegistry
 from app.services.camera_service_client import CameraServiceClient
 from app.services.camera_stream_service import CameraStreamService
+from app.services.flood_analysis_service import FloodAnalysisService
 from app.services.flood_reading_parser import FloodReadingParser
 from app.services.gemini_client import GeminiClient
 
 router = APIRouter(prefix="/cameras", tags=["Cameras"])
 gemini_client = GeminiClient()
 camera_service_client = CameraServiceClient()
+flood_analysis_service = FloodAnalysisService()
 
 
 class CameraAnalyzeRequest(BaseModel):
@@ -63,7 +66,10 @@ async def list_cameras(
         limit=500,
     )
 
-    merged: List[CameraResponse] = list(local_cameras)
+    merged: List[CameraResponse] = []
+    for c in local_cameras:
+        merged.append(CameraResponse.model_validate(c))
+
     if remote_items:
         for item in remote_items:
             cam_id = str(item.get("id"))
@@ -75,6 +81,31 @@ async def list_cameras(
                 except Exception:
                     pass
 
+    # Attach latest flood readings across all cameras
+    latest_readings_stmt = (
+        select(FloodReadingDB)
+        .distinct(FloodReadingDB.camera_id)
+        .order_by(FloodReadingDB.camera_id, FloodReadingDB.timestamp.desc())
+    )
+    r_res = await db.execute(latest_readings_stmt)
+    latest_map = {}
+    for r in r_res.scalars().all():
+        latest_map[r.camera_id] = FloodReadingSummary(
+            flood_detected=r.flood_detected,
+            depth_level=r.depth_level,
+            depth_estimate_cm_min=r.depth_estimate_cm_min,
+            depth_estimate_cm_max=r.depth_estimate_cm_max,
+            confidence_score=r.confidence_score,
+            alert_message=r.alert_message,
+            reasoning=r.reasoning,
+            reference_objects=r.get_reference_objects(),
+            timestamp=r.timestamp,
+        )
+
+    for cam_resp in merged:
+        if cam_resp.id in latest_map:
+            cam_resp.latest_reading = latest_map[cam_resp.id]
+
     return merged
 
 
@@ -85,13 +116,37 @@ async def get_camera(
 ):
     """Get metadata and current health status for a specific camera."""
     cam = await CameraRegistry.get_by_id(db, camera_id)
+    resp = None
     if cam:
-        return cam
+        resp = CameraResponse.model_validate(cam)
+    else:
+        external = await camera_service_client.get_camera_by_id(camera_id)
+        if external:
+            resp = _convert_external_camera(external)
 
-    # Try camera-backend
-    external = await camera_service_client.get_camera_by_id(camera_id)
-    if external:
-        return _convert_external_camera(external)
+    if resp:
+        # Attach latest reading if present
+        stmt = (
+            select(FloodReadingDB)
+            .where(FloodReadingDB.camera_id == camera_id)
+            .order_by(FloodReadingDB.timestamp.desc())
+            .limit(1)
+        )
+        res = await db.execute(stmt)
+        latest = res.scalars().first()
+        if latest:
+            resp.latest_reading = FloodReadingSummary(
+                flood_detected=latest.flood_detected,
+                depth_level=latest.depth_level,
+                depth_estimate_cm_min=latest.depth_estimate_cm_min,
+                depth_estimate_cm_max=latest.depth_estimate_cm_max,
+                confidence_score=latest.confidence_score,
+                alert_message=latest.alert_message,
+                reasoning=latest.reasoning,
+                reference_objects=latest.get_reference_objects(),
+                timestamp=latest.timestamp,
+            )
+        return resp
 
     raise HTTPException(status_code=404, detail=f"Camera with ID '{camera_id}' not found.")
 
@@ -134,83 +189,11 @@ async def analyze_camera_snapshot(
     db: AsyncSession = Depends(get_db),
 ):
     """Captures camera frame and executes Gemini Vision VLRDR flood depth analysis."""
-    cam = await CameraRegistry.get_by_id(db, camera_id)
-    camera_name = cam.name if cam else camera_id
-    camera_angle = (cam.camera_angle if cam else None) or "elevated"
-    location_hint = (cam.location if cam else None) or camera_name
-    zone_id = cam.zone_id if cam else None
-
-    # 1. Grab frame: client upload, camera-backend, or local stream
-    frame_bytes = None
-    if payload and payload.image_base64:
-        try:
-            raw_b64 = payload.image_base64
-            if "," in raw_b64:
-                raw_b64 = raw_b64.split(",", 1)[1]
-            frame_bytes = base64.b64decode(raw_b64)
-        except Exception:
-            frame_bytes = None
-
-    if not frame_bytes or len(frame_bytes) < 100:
-        if cam:
-            frame_bytes, _ = await CameraStreamService.get_snapshot_bytes(
-                stream_url=cam.stream_url,
-                camera_id=cam.id,
-                camera_name=cam.name,
-                force_refresh=True,
-            )
-        else:
-            frame_bytes, _ = await camera_service_client.get_snapshot_bytes(
-                camera_id=camera_id,
-                camera_name=camera_name,
-            )
-
-    # 2. Invoke Gemini Vision AI analysis
-    raw_text, model_used, elapsed, tokens = await gemini_client.analyze_image_bytes(
-        image_bytes=frame_bytes,
-        camera_angle=cam.camera_angle or "elevated",
-        location_hint=cam.location or cam.name,
-    )
-
-    # 3. Parse VLRDR response schema
-    reading = FloodReadingParser.parse(
-        raw_text=raw_text,
-        camera_id=cam.id,
-    )
-
-    # 4. Persist reading to database
-    db_reading = FloodReadingDB(
-        camera_id=cam.id,
-        zone_id=cam.zone_id,
-        timestamp=datetime.now(timezone.utc),
-        flood_detected=reading.flood_detected,
-        confidence_score=reading.confidence_score,
-        depth_level=reading.depth_level,
-        depth_estimate_cm_min=reading.depth_estimate_cm_min,
-        depth_estimate_cm_max=reading.depth_estimate_cm_max,
-        reference_objects=json.dumps(reading.reference_objects_used or []),
-        reasoning=reading.reasoning,
-        alert_message=reading.alert_message,
-    )
-    db.add(db_reading)
-
-    # 5. Update associated zone depth level if assigned
-    if cam.zone_id and reading.depth_level is not None:
-        zone = await db.get(FloodZone, cam.zone_id)
-        if zone:
-            zone.current_depth_level = reading.depth_level
-            zone.current_depth_cm_min = reading.depth_estimate_cm_min
-            zone.current_depth_cm_max = reading.depth_estimate_cm_max
-            zone.last_updated_at = datetime.now(timezone.utc)
-
-    await db.commit()
-
-    return AnalysisResponse(
-        success=True,
-        reading=reading,
-        inference_time_ms=round(elapsed * 1000, 1),
-        model_used=model_used,
-        tokens_used=tokens,
+    image_b64 = payload.image_base64 if payload else None
+    return await flood_analysis_service.analyze_single_camera(
+        session=db,
+        camera_id=camera_id,
+        image_base64=image_b64,
     )
 
 

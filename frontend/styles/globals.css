@@ -107,3 +107,36 @@ body {
   font-size: 13px;
 }
 
+/* Flood Severity Specific Markers */
+.cam-marker-pin.flood-level-0 {
+  border-color: #10b981 !important;
+  box-shadow: 0 0 10px rgba(16, 185, 129, 0.4) !important;
+}
+
+.cam-marker-pin.flood-level-1,
+.cam-marker-pin.flood-level-2 {
+  border-color: #eab308 !important;
+  box-shadow: 0 0 12px rgba(234, 179, 8, 0.5) !important;
+}
+
+.cam-marker-pin.flood-level-3 {
+  border-color: #f97316 !important;
+  box-shadow: 0 0 14px rgba(249, 115, 22, 0.6) !important;
+}
+
+.cam-marker-pin.flood-level-4,
+.cam-marker-pin.flood-level-5 {
+  border-color: #ef4444 !important;
+  box-shadow: 0 0 18px rgba(239, 68, 68, 0.8) !important;
+  animation: pulse 1.8s infinite;
+}
+
+.cam-marker-pin.flood-unanalyzed {
+  border-color: #3b82f6 !important;
+}
+
+.custom-cluster-badge.cluster-has-flood {
+  border-color: #ef4444 !important;
+  box-shadow: 0 0 20px rgba(239, 68, 68, 0.7) !important;
+}
+

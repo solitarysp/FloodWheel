@@ -65,6 +65,83 @@ class CameraRegistry:
             )
 
     @staticmethod
+    def _slugify(text: str) -> str:
+        import re
+        import unicodedata
+        nfkd = unicodedata.normalize("NFKD", text)
+        ascii_text = "".join([c for c in nfkd if not unicodedata.combining(c)])
+        clean = re.sub(r"[^a-zA-Z0-9]+", "-", ascii_text.strip().lower()).strip("-")
+        return clean or "hcmc"
+
+    @classmethod
+    async def ensure_camera_and_zone(
+        cls,
+        session: AsyncSession,
+        camera_id: str,
+        name: str,
+        location: str,
+        latitude: float,
+        longitude: float,
+        stream_url: Optional[str] = None,
+        camera_angle: str = "elevated",
+        status: str = "ONLINE",
+    ) -> Camera:
+        import json
+
+        district_name = location or "TP. Hồ Chí Minh"
+        zone_slug = f"zone-{cls._slugify(district_name)}"
+
+        # 1. Ensure FloodZone exists
+        zone = await session.get(FloodZone, zone_slug)
+        if not zone:
+            zone = FloodZone(
+                id=zone_slug,
+                name=f"Khu vực {district_name}",
+                district=district_name,
+                city="hcmc",
+                center_lat=latitude or 10.7769,
+                center_lng=longitude or 106.7009,
+                geometry_geojson=json.dumps({
+                    "type": "Point",
+                    "coordinates": [longitude or 106.7009, latitude or 10.7769],
+                }),
+                current_depth_level=0,
+                current_depth_cm_min=0,
+                current_depth_cm_max=0,
+                is_overridden=False,
+                last_updated_at=datetime.now(timezone.utc),
+            )
+            session.add(zone)
+            await session.flush()
+
+        # 2. Ensure Camera exists
+        cam = await session.get(Camera, camera_id)
+        if not cam:
+            cam = Camera(
+                id=camera_id,
+                name=name or camera_id,
+                location=location or district_name,
+                latitude=latitude or 10.7769,
+                longitude=longitude or 106.7009,
+                camera_angle=camera_angle or "elevated",
+                stream_url=stream_url or f"/cameras/{camera_id}/snapshot",
+                zone_id=zone_slug,
+                status=status or "ONLINE",
+                failed_polls_count=0,
+                last_polled_at=datetime.now(timezone.utc),
+            )
+            session.add(cam)
+            await session.flush()
+        else:
+            if not cam.zone_id:
+                cam.zone_id = zone_slug
+            if status:
+                cam.status = status
+            await session.flush()
+
+        return cam
+
+    @staticmethod
     async def record_poll_result(session: AsyncSession, camera_id: str, success: bool) -> Optional[Camera]:
         cam = await session.get(Camera, camera_id)
         if not cam:

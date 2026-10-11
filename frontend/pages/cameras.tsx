@@ -51,6 +51,7 @@ export default function CamerasPage() {
 
   // Add Camera Modal state
   const [isAddModalOpen, setIsAddModalOpen] = useState<boolean>(false);
+  const [isBatchAnalyzing, setIsBatchAnalyzing] = useState<boolean>(false);
 
   const apiUrl = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
 
@@ -93,6 +94,33 @@ export default function CamerasPage() {
     setTimeout(() => setIsRefreshingAll(false), 800);
   };
 
+  const handleBatchAnalyze = async () => {
+    setIsBatchAnalyzing(true);
+    try {
+      const res = await fetch(`${apiUrl}/api/v1/flood/analyze-batch`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          district: selectedDistrict !== "all" ? selectedDistrict : null,
+          limit: 10,
+        }),
+      });
+      if (res.ok) {
+        const data = await res.json();
+        const flooded = data.result?.flooded_count || 0;
+        const total = data.result?.total_analyzed || 0;
+        alert(`Đã hoàn thành quét AI cho ${total} camera. Phát hiện ${flooded} điểm ngập nước!`);
+        await fetchCameras();
+      } else {
+        alert("Lỗi khi chạy quét AI hàng loạt.");
+      }
+    } catch (err: any) {
+      alert(`Lỗi quét hàng loạt: ${err.message}`);
+    } finally {
+      setIsBatchAnalyzing(false);
+    }
+  };
+
   const handleAnalyze = async (camera: Camera, capturedFrameBase64?: string) => {
     setAnalyzingId(camera.id);
     setSelectedCameraForAnalysis(camera);
@@ -115,6 +143,8 @@ export default function CamerasPage() {
       const data: AnalysisResponse = await res.json();
       setAnalysisResult(data);
       setIsModalOpen(true);
+      // Immediately refresh camera list to display the new reading on map & cards
+      fetchCameras();
     } catch (err: any) {
       alert(`Error analyzing camera snapshot: ${err.message}`);
     } finally {
@@ -155,6 +185,14 @@ export default function CamerasPage() {
 
   const onlineCount = cameras.filter((c) => c.status.toUpperCase() === "ONLINE").length;
   const sectorsCount = new Set(cameras.map((c) => c.location)).size;
+  const analyzedCount = cameras.filter((c) => !!c.latest_reading).length;
+  const floodedCount = cameras.filter(
+    (c) => !!c.latest_reading && ((c.latest_reading.depth_level || 0) >= 1 || c.latest_reading.flood_detected)
+  ).length;
+  const maxFloodCm = Math.max(
+    ...cameras.map((c) => c.latest_reading?.depth_estimate_cm_max || 0),
+    0
+  );
 
   return (
     <div className="min-h-screen bg-slate-50 text-slate-800 flex flex-col font-sans">
@@ -178,12 +216,12 @@ export default function CamerasPage() {
               <span>Municipal CCTV Snapshot Grid</span>
             </div>
             <h1 className="text-3xl sm:text-4xl font-extrabold tracking-tight">
-              Live Public Cameras & AI Snapshot Inspection
+              Live Public Cameras & AI Flood Surveillance
             </h1>
             <p className="text-sm sm:text-base text-slate-300 leading-relaxed">
               Monitor real-time municipal traffic CCTV feeds across high-risk corridors. View live{" "}
               <strong className="text-white">snapshot feeds</strong> from HCMC traffic intersections, then click{" "}
-              <strong className="text-white">"Capture & Analyze"</strong> to measure flood depth in centimeters
+              <strong className="text-white">"Capture & Analyze"</strong> or run batch scan to measure flood depth in centimeters
               using Gemini Vision VLRDR without physical sensor hardware.
             </p>
 
@@ -194,16 +232,16 @@ export default function CamerasPage() {
                 <span className="text-xl font-bold text-white">{cameras.length} Nodes</span>
               </div>
               <div className="bg-white/5 backdrop-blur-md p-3 rounded-2xl border border-white/10">
-                <span className="text-xs text-slate-400 block font-medium">Monitored Sectors</span>
-                <span className="text-xl font-bold text-blue-300">{sectorsCount} Locations</span>
+                <span className="text-xs text-slate-400 block font-medium">AI Analyzed</span>
+                <span className="text-xl font-bold text-blue-300">{analyzedCount} Feeds</span>
               </div>
               <div className="bg-white/5 backdrop-blur-md p-3 rounded-2xl border border-white/10">
-                <span className="text-xs text-slate-400 block font-medium">Active Snapshot Feeds</span>
-                <span className="text-xl font-bold text-emerald-400">{onlineCount} Online</span>
+                <span className="text-xs text-slate-400 block font-medium">Flooded Hotspots</span>
+                <span className="text-xl font-bold text-rose-400">{floodedCount} Locations</span>
               </div>
               <div className="bg-white/5 backdrop-blur-md p-3 rounded-2xl border border-white/10">
-                <span className="text-xs text-slate-400 block font-medium">AI Inference</span>
-                <span className="text-xl font-bold text-amber-300">&lt; 0.5s / Frame</span>
+                <span className="text-xs text-slate-400 block font-medium">Max Water Depth</span>
+                <span className="text-xl font-bold text-amber-300">{maxFloodCm} cm</span>
               </div>
             </div>
           </div>
@@ -338,6 +376,8 @@ export default function CamerasPage() {
               <CameraMap
                 cameras={filteredCameras}
                 onAnalyze={handleAnalyze}
+                onBatchAnalyze={handleBatchAnalyze}
+                isBatchAnalyzing={isBatchAnalyzing}
               />
             </div>
           ) : (

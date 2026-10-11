@@ -7,6 +7,18 @@ import {
   AlertTriangle,
 } from "lucide-react";
 
+export interface FloodReadingSummary {
+  flood_detected: boolean;
+  depth_level: number | null;
+  depth_estimate_cm_min: number;
+  depth_estimate_cm_max: number;
+  confidence_score: number;
+  alert_message: string;
+  reasoning?: string;
+  reference_objects?: string[];
+  timestamp: string;
+}
+
 export interface Camera {
   id: string;
   name: string;
@@ -16,8 +28,9 @@ export interface Camera {
   camera_angle: string;
   stream_url: string;
   video_url?: string;
-  zone_id: string;
+  zone_id?: string;
   status: string;
+  latest_reading?: FloodReadingSummary | null;
 }
 
 interface CameraCardProps {
@@ -75,7 +88,7 @@ export const CameraCard: React.FC<CameraCardProps> = ({
       {/* Card Header */}
       <div className="p-4 border-b border-slate-100 flex items-start justify-between gap-2">
         <div className="min-w-0">
-          <div className="flex items-center gap-2 mb-1">
+          <div className="flex flex-wrap items-center gap-1.5 mb-1">
             <span
               className={`inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-xs font-semibold ${
                 isOnline
@@ -86,7 +99,31 @@ export const CameraCard: React.FC<CameraCardProps> = ({
               <span className={`w-1.5 h-1.5 rounded-full ${isOnline ? "bg-emerald-500 animate-pulse" : "bg-rose-500"}`} />
               {camera.status}
             </span>
-            <span className="text-xs font-mono bg-slate-100 text-slate-600 px-1.5 py-0.5 rounded">
+
+            {/* Flood Status Badge */}
+            {camera.latest_reading ? (
+              <span
+                className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-bold ${
+                  (camera.latest_reading.depth_level || 0) === 0
+                    ? "bg-emerald-100 text-emerald-800 border border-emerald-300"
+                    : (camera.latest_reading.depth_level || 0) <= 2
+                    ? "bg-amber-100 text-amber-800 border border-amber-300"
+                    : "bg-rose-100 text-rose-800 border border-rose-300 animate-pulse"
+                }`}
+              >
+                <span>
+                  {(camera.latest_reading.depth_level || 0) === 0
+                    ? "Khô ráo (0cm)"
+                    : `Ngập L${camera.latest_reading.depth_level}: ${camera.latest_reading.depth_estimate_cm_max}cm`}
+                </span>
+              </span>
+            ) : (
+              <span className="text-[11px] bg-slate-100 text-slate-500 px-2 py-0.5 rounded-full border border-slate-200">
+                Chưa phân tích
+              </span>
+            )}
+
+            <span className="text-xs font-mono bg-slate-100 text-slate-600 px-1.5 py-0.5 rounded ml-auto">
               {camera.id}
             </span>
           </div>

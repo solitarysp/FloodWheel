@@ -1,16 +1,108 @@
 import math
 from typing import Any, Dict, List, Optional
 from fastapi import APIRouter, Depends, HTTPException, Query
+from pydantic import BaseModel, Field
 from sqlalchemy import desc, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.db.session import get_db
-from app.models.db_models import FloodReadingDB, FloodZone
+from app.models.db_models import Camera, FloodReadingDB, FloodZone
 from app.models.zone_status import ZoneStatus
+from app.services.flood_analysis_service import FloodAnalysisService
 from app.services.heatmap_builder import HeatmapBuilder
 from app.services.zone_aggregator import ZoneAggregator
 
 router = APIRouter(prefix="/flood", tags=["Flood"])
+flood_analysis_service = FloodAnalysisService()
+
+
+class BatchAnalyzeRequest(BaseModel):
+    camera_ids: Optional[List[str]] = Field(None, description="Specific camera IDs to analyze")
+    district: Optional[str] = Field(None, description="District filter (e.g. 'Quận 1')")
+    limit: int = Field(10, ge=1, le=50, description="Max cameras to analyze in this batch")
+
+
+@router.post("/analyze-batch")
+async def analyze_batch_cameras(
+    req: BatchAnalyzeRequest = BatchAnalyzeRequest(),
+    db: AsyncSession = Depends(get_db),
+):
+    """Executes AI flood depth analysis across a batch of cameras with concurrency control."""
+    result = await flood_analysis_service.analyze_batch(
+        session=db,
+        camera_ids=req.camera_ids,
+        district=req.district,
+        limit=req.limit,
+    )
+    return {"success": True, "result": result}
+
+
+@router.get("/summary")
+async def get_flood_summary(db: AsyncSession = Depends(get_db)) -> Dict[str, Any]:
+    """Provides city-wide aggregated flood metrics across monitored cameras and zones."""
+    stmt_zones = select(FloodZone)
+    z_res = await db.execute(stmt_zones)
+    zones = list(z_res.scalars().all())
+
+    stmt_readings = (
+        select(FloodReadingDB)
+        .distinct(FloodReadingDB.camera_id)
+        .order_by(FloodReadingDB.camera_id, FloodReadingDB.timestamp.desc())
+    )
+    r_res = await db.execute(stmt_readings)
+    latest_readings = list(r_res.scalars().all())
+
+    total_cameras = len(latest_readings)
+    flooded_cameras = sum(1 for r in latest_readings if (r.depth_level or 0) >= 1)
+    severe_flooded = sum(1 for r in latest_readings if (r.depth_level or 0) >= 3)
+    max_depth = max([r.depth_estimate_cm_max for r in latest_readings] or [0])
+
+    city_level = 0
+    if zones:
+        city_level = max([z.current_depth_level or 0 for z in zones] or [0])
+    elif latest_readings:
+        city_level = max([r.depth_level or 0 for r in latest_readings] or [0])
+
+    status_tag = "NORMAL"
+    if city_level >= 3:
+        status_tag = "DANGER"
+    elif city_level >= 1:
+        status_tag = "CAUTION"
+
+    districts = []
+    for z in zones:
+        districts.append({
+            "zone_id": z.id,
+            "district": z.district,
+            "depth_level": z.current_depth_level,
+            "depth_cm_min": z.current_depth_cm_min,
+            "depth_cm_max": z.current_depth_cm_max,
+            "is_flooded": (z.current_depth_level or 0) >= 2,
+            "is_overridden": z.is_overridden,
+            "last_updated": z.last_updated_at.isoformat() if z.last_updated_at else None,
+        })
+
+    return {
+        "status": status_tag,
+        "city_flood_level": city_level,
+        "monitored_zones_count": len(zones),
+        "analyzed_cameras_count": total_cameras,
+        "flooded_cameras_count": flooded_cameras,
+        "severe_flooded_count": severe_flooded,
+        "max_water_depth_cm": max_depth,
+        "districts": districts,
+        "recent_readings": [
+            {
+                "camera_id": r.camera_id,
+                "depth_level": r.depth_level,
+                "depth_cm_min": r.depth_estimate_cm_min,
+                "depth_cm_max": r.depth_estimate_cm_max,
+                "alert_message": r.alert_message,
+                "timestamp": r.timestamp.isoformat() if r.timestamp else None,
+            }
+            for r in latest_readings[:10]
+        ],
+    }
 
 
 def haversine_distance(lat1: float, lon1: float, lat2: float, lon2: float) -> float:

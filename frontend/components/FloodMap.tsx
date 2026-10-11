@@ -119,19 +119,20 @@ export const FloodMap: React.FC<FloodMapProps> = ({
           {/* Flood Zones Polygons & Nodes */}
           {features.map((feat, idx) => {
             const props = feat.properties;
-            const isSelected = selectedZoneId === props.zone_id;
+            const zoneId = props.zone_id || feat.id;
+            const isSelected = selectedZoneId === zoneId;
 
-            // Map GPS coords to SVG canvas viewport
-            // Center around HCMC: lng 106.69 to 106.76, lat 10.77 to 10.85
-            const x = 180 + ((props.center[0] - 106.69) / 0.08) * 580;
-            const y = 480 - ((props.center[1] - 10.76) / 0.10) * 440;
+            // Map GPS coords to SVG canvas viewport safely
+            const center = Array.isArray(props.center) ? props.center : [106.7009, 10.7769];
+            const x = Math.max(40, Math.min(860, 180 + ((center[0] - 106.69) / 0.08) * 580));
+            const y = Math.max(40, Math.min(560, 480 - ((center[1] - 10.76) / 0.10) * 440));
 
-            const radius = 32 + (props.depth_level * 6);
+            const radius = 28 + ((props.depth_level || 0) * 6);
 
             return (
               <g
                 key={feat.id || idx}
-                onClick={() => onSelectZone(props.zone_id)}
+                onClick={() => zoneId && onSelectZone(zoneId)}
                 className="cursor-pointer transition-transform group"
               >
                 {/* Heatmap Pulsing Aura */}
