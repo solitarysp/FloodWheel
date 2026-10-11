@@ -89,9 +89,8 @@ async def cancel_zone_override(
 @router.post("/poll-cycle")
 async def trigger_poll_cycle():
     """Manually triggers an immediate end-to-end camera polling and AI analysis cycle."""
-    from app.services.polling_scheduler import PollingScheduler
+    from app.services.flood_queue_service import flood_queue_service
 
-    scheduler = PollingScheduler()
-    result = await scheduler.run_single_poll_cycle()
-    return {"success": True, "result": result}
+    status_data = await flood_queue_service.trigger_now()
+    return {"success": True, "result": status_data}
 

@@ -13,6 +13,7 @@ from typing import Any, Dict, List, Optional
 from sqlalchemy import desc, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.db.session import AsyncSessionLocal
 from app.models.db_models import Camera, FloodReadingDB, FloodZone
 from app.models.flood_reading import AnalysisResponse, FloodReading
 from app.services.camera_registry import CameraRegistry
@@ -20,6 +21,7 @@ from app.services.camera_service_client import CameraServiceClient
 from app.services.camera_stream_service import CameraStreamService
 from app.services.flood_reading_parser import FloodReadingParser
 from app.services.gemini_client import GeminiClient
+from app.services.image_validator import ImageValidator
 from app.services.zone_aggregator import ZoneAggregator
 
 logger = logging.getLogger("floodwheel.analysis_service")
@@ -85,6 +87,31 @@ class FloodAnalysisService:
             frame_bytes, _ = await self.camera_service_client.get_snapshot_bytes(
                 camera_id=camera_id,
                 camera_name=cam.name,
+            )
+
+        # Check if frame is a default / synthetic fallback frame or error placeholder image
+        if not frame_bytes or ImageValidator.is_default_or_invalid(frame_bytes):
+            logger.info(
+                "Camera %s is returning default/synthetic placeholder frame (%d bytes). Skipping AI scan.",
+                camera_id,
+                len(frame_bytes) if frame_bytes else 0,
+            )
+            return AnalysisResponse(
+                success=False,
+                reading=FloodReading(
+                    camera_id=cam.id,
+                    flood_detected=False,
+                    depth_level=0,
+                    depth_estimate_cm_min=0,
+                    depth_estimate_cm_max=0,
+                    confidence_score=0.0,
+                    alert_message="Ảnh camera là ảnh mặc định (chưa có tín hiệu thực tế). Tạm thời bỏ qua quét AI.",
+                    reasoning="Default synthetic frame or placeholder error image detected. AI analysis skipped to avoid false readings.",
+                    reference_objects_used=[],
+                ),
+                inference_time_ms=0.0,
+                model_used="skipped-default-image",
+                tokens_used=0,
             )
 
         # 3. Execute Gemini Vision AI inference
@@ -182,10 +209,28 @@ class FloodAnalysisService:
         async def _worker(cam_id: str):
             async with semaphore:
                 try:
-                    res = await self.analyze_single_camera(session, cam_id)
+                    async with AsyncSessionLocal() as worker_session:
+                        res = await self.analyze_single_camera(worker_session, cam_id)
+
+                    if res.model_used == "skipped-default-image":
+                        return {
+                            "camera_id": cam_id,
+                            "success": True,
+                            "skipped": True,
+                            "reason": "Ảnh mặc định (chưa có luồng thực tế)",
+                            "depth_level": 0,
+                            "depth_cm_min": 0,
+                            "depth_cm_max": 0,
+                            "flood_detected": False,
+                            "confidence_score": 0.0,
+                            "alert_message": res.reading.alert_message,
+                            "inference_time_ms": 0.0,
+                        }
+
                     return {
                         "camera_id": cam_id,
                         "success": True,
+                        "skipped": False,
                         "depth_level": res.reading.depth_level,
                         "depth_cm_min": res.reading.depth_estimate_cm_min,
                         "depth_cm_max": res.reading.depth_estimate_cm_max,

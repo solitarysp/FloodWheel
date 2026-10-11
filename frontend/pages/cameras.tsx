@@ -5,6 +5,7 @@ import { Navbar } from "../components/Navbar";
 import { CameraCard, Camera } from "../components/CameraCard";
 import { CameraAnalysisModal, AnalysisResponse } from "../components/CameraAnalysisModal";
 import { AddCameraModal } from "../components/AddCameraModal";
+import { AiQueueBanner } from "../components/AiQueueBanner";
 import {
   Camera as CameraIcon,
   Search,
@@ -246,6 +247,9 @@ export default function CamerasPage() {
             </div>
           </div>
         </div>
+
+        {/* AI Background Queue Status & Cycle Countdown */}
+        <AiQueueBanner onDataUpdated={fetchCameras} />
 
         {/* Control & Filter Toolbar */}
         <div className="bg-white p-4 rounded-2xl border border-slate-200/80 shadow-sm flex flex-col md:flex-row items-stretch md:items-center justify-between gap-4">

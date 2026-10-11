@@ -14,12 +14,14 @@ logger = logging.getLogger("camera_service.validator")
 class ImageValidator:
     """Multi-factor image payload validator."""
 
-    # Exact hash signatures of known municipal error banners
+    # Exact hash signatures of known municipal error banners & default synthetic frames
     KNOWN_ERROR_MD5: Set[str] = {
-        "9653ea117b2c39d4c477b0949f95860e",
+        "9653ea117b2c39d4c477b0949f95860e",  # Municipal 'IMAGE NOT AVAILABLE' banner
+        "b107ef1b97a1eae7a3345879b133299e",  # Default synthetic frame (snapshot (1).jpeg)
     }
     KNOWN_ERROR_SHA256: Set[str] = {
         "44246c5dfb69d91cffde872630d789488bf0e603ceda9c53b1984185aec4ffba",
+        "e2da96a01715c2e4f937db4554d7ca7750b522b890e0fd75d7c64dfd84bc3a7d",
     }
 
     # Binary magic headers

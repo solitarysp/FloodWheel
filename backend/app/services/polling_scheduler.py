@@ -2,7 +2,7 @@ import asyncio
 from datetime import datetime, timezone
 import json
 import logging
-from typing import Dict, List
+from typing import Any, Dict, List
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 

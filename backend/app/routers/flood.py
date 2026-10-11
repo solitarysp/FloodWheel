@@ -22,6 +22,49 @@ class BatchAnalyzeRequest(BaseModel):
     limit: int = Field(10, ge=1, le=50, description="Max cameras to analyze in this batch")
 
 
+class EnqueueRequest(BaseModel):
+    camera_ids: List[str] = Field(..., min_length=1, description="List of camera IDs to enqueue")
+
+
+@router.get("/queue/status")
+async def get_queue_status() -> Dict[str, Any]:
+    """Returns real-time status of the automated background AI flood analysis queue."""
+    from app.services.flood_queue_service import flood_queue_service
+    return flood_queue_service.get_status()
+
+
+@router.post("/queue/trigger")
+async def trigger_queue_cycle() -> Dict[str, Any]:
+    """Forces an immediate analysis cycle across all cameras, skipping 30-minute interval."""
+    from app.services.flood_queue_service import flood_queue_service
+    status_data = await flood_queue_service.trigger_now()
+    return {"success": True, "message": "Queue cycle triggered immediately", "status": status_data}
+
+
+@router.post("/queue/enqueue")
+async def enqueue_cameras_to_queue(req: EnqueueRequest) -> Dict[str, Any]:
+    """Enqueues specific cameras into the background processing queue."""
+    from app.services.flood_queue_service import flood_queue_service
+    added = await flood_queue_service.enqueue_cameras(req.camera_ids)
+    return {"success": True, "enqueued_count": added, "status": flood_queue_service.get_status()}
+
+
+@router.post("/queue/pause")
+async def pause_queue() -> Dict[str, Any]:
+    """Pauses automated cycles."""
+    from app.services.flood_queue_service import flood_queue_service
+    status_data = await flood_queue_service.pause()
+    return {"success": True, "message": "Queue paused", "status": status_data}
+
+
+@router.post("/queue/resume")
+async def resume_queue() -> Dict[str, Any]:
+    """Resumes automated cycles."""
+    from app.services.flood_queue_service import flood_queue_service
+    status_data = await flood_queue_service.resume()
+    return {"success": True, "message": "Queue resumed", "status": status_data}
+
+
 @router.post("/analyze-batch")
 async def analyze_batch_cameras(
     req: BatchAnalyzeRequest = BatchAnalyzeRequest(),

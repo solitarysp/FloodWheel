@@ -31,8 +31,14 @@ async def lifespan(app: FastAPI):
     except Exception as e:
         logger.warning(f"Seed database warning: {e}")
 
+    # Start automated flood analysis background queue (runs every 30m after last completion)
+    from app.services.flood_queue_service import flood_queue_service
+    if getattr(settings, "FLOOD_QUEUE_AUTO_START", True):
+        await flood_queue_service.start()
+
     yield
     logger.info("Shutting down FloodWheel AI Backend...")
+    await flood_queue_service.stop()
 
 
 app = FastAPI(

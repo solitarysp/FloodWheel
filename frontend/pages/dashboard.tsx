@@ -6,6 +6,7 @@ import { FloodMap, GeoJsonData } from "@/components/FloodMap";
 import { ZoneDetailPanel } from "@/components/ZoneDetailPanel";
 import { OverrideDialog } from "@/components/OverrideDialog";
 import { AlertSidebar } from "@/components/AlertSidebar";
+import { AiQueueBanner } from "@/components/AiQueueBanner";
 import {
   Activity,
   CloudRain,
@@ -118,6 +119,9 @@ export default function DashboardPage() {
       <Navbar />
 
       <main className="flex-1 max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-6 space-y-6">
+        {/* Automated AI Flood Analysis Queue Status Banner */}
+        <AiQueueBanner onDataUpdated={fetchHeatmap} />
+
         {/* Top Control & Metric Bar */}
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
           <div className="bg-slate-800/80 p-4 rounded-2xl border border-slate-700/60 flex items-center justify-between">

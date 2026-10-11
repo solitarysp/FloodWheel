@@ -18,6 +18,10 @@ class Settings(BaseSettings):
     DATABASE_URL: str = "postgresql+asyncpg://postgres:postgres@postgres:5432/floodwheel"
     REDIS_URL: str = "redis://redis:6379/0"
 
+    # Background Automated AI Analysis Queue
+    FLOOD_QUEUE_INTERVAL_MINUTES: int = 30
+    FLOOD_QUEUE_AUTO_START: bool = True
+
     # Microservices
     CAMERA_BACKEND_URL: str = "http://camera-backend:8001"
 
