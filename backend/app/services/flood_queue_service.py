@@ -365,8 +365,11 @@ class FloodAnalysisQueue:
                     self._queue.task_done()
                     await self._sync_state_to_redis()
 
-                    # Polite rate throttle (1.0s) between camera frames to prevent rate limits
-                    await asyncio.sleep(1.0)
+                    # Polite rate throttle: 0.3s for skipped default frames, 3.0s after AI scans to avoid 429
+                    if res.get("skipped"):
+                        await asyncio.sleep(0.3)
+                    else:
+                        await asyncio.sleep(3.0)
 
                 # ----------------- 3. CYCLE FINISHED -----------------
                 # Sau lần chạy cuối cùng: cập nhật thời gian hoàn thành

@@ -96,3 +96,33 @@ async def test_image_validator_detects_default_synthetic_and_error_frames():
 
     # 3. Test empty data
     assert ImageValidator.is_default_or_invalid(b"") is True
+
+
+@pytest.mark.asyncio
+async def test_gemini_client_concurrency_lock_single_execution():
+    from unittest.mock import patch
+    from app.services.gemini_client import GeminiClient
+
+    client = GeminiClient()
+    active_inferences = 0
+    max_concurrent_seen = 0
+
+    async def mock_call(*args, **kwargs):
+        nonlocal active_inferences, max_concurrent_seen
+        active_inferences += 1
+        max_concurrent_seen = max(max_concurrent_seen, active_inferences)
+        await asyncio.sleep(0.05)
+        active_inferences -= 1
+        return "{}", "gemini-test", 0.05, 10
+
+    # Test running 5 concurrent requests
+    with patch.object(client, "_execute_analysis_with_retries", side_effect=mock_call):
+        with patch.object(GeminiClient, "_min_call_interval", 0.01):
+            tasks = [
+                client.analyze_image_bytes(image_bytes=b"fake")
+                for _ in range(5)
+            ]
+            await asyncio.gather(*tasks)
+
+    # Concurrency must be strictly 1 at all times!
+    assert max_concurrent_seen == 1

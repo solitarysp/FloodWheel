@@ -203,32 +203,30 @@ class FloodAnalysisService:
                 "results": [],
             }
 
-        semaphore = asyncio.Semaphore(3)  # Max 3 concurrent requests to avoid rate limits
         results = []
+        # Process strictly one camera at a time to prevent HTTP 429 rate limits
+        for cid in targets:
+            try:
+                async with AsyncSessionLocal() as worker_session:
+                    res = await self.analyze_single_camera(worker_session, cid)
 
-        async def _worker(cam_id: str):
-            async with semaphore:
-                try:
-                    async with AsyncSessionLocal() as worker_session:
-                        res = await self.analyze_single_camera(worker_session, cam_id)
-
-                    if res.model_used == "skipped-default-image":
-                        return {
-                            "camera_id": cam_id,
-                            "success": True,
-                            "skipped": True,
-                            "reason": "Ảnh mặc định (chưa có luồng thực tế)",
-                            "depth_level": 0,
-                            "depth_cm_min": 0,
-                            "depth_cm_max": 0,
-                            "flood_detected": False,
-                            "confidence_score": 0.0,
-                            "alert_message": res.reading.alert_message,
-                            "inference_time_ms": 0.0,
-                        }
-
-                    return {
-                        "camera_id": cam_id,
+                if res.model_used == "skipped-default-image":
+                    results.append({
+                        "camera_id": cid,
+                        "success": True,
+                        "skipped": True,
+                        "reason": "Ảnh mặc định (chưa có luồng thực tế)",
+                        "depth_level": 0,
+                        "depth_cm_min": 0,
+                        "depth_cm_max": 0,
+                        "flood_detected": False,
+                        "confidence_score": 0.0,
+                        "alert_message": res.reading.alert_message,
+                        "inference_time_ms": 0.0,
+                    })
+                else:
+                    results.append({
+                        "camera_id": cid,
                         "success": True,
                         "skipped": False,
                         "depth_level": res.reading.depth_level,
@@ -238,17 +236,16 @@ class FloodAnalysisService:
                         "confidence_score": res.reading.confidence_score,
                         "alert_message": res.reading.alert_message,
                         "inference_time_ms": res.inference_time_ms,
-                    }
-                except Exception as exc:
-                    logger.error("Error analyzing camera %s in batch: %s", cam_id, exc)
-                    return {
-                        "camera_id": cam_id,
-                        "success": False,
-                        "error": str(exc),
-                    }
-
-        tasks = [_worker(cid) for cid in targets]
-        results = await asyncio.gather(*tasks)
+                    })
+                    # Polite pacing delay between consecutive AI scans
+                    await asyncio.sleep(2.5)
+            except Exception as exc:
+                logger.error("Error analyzing camera %s in batch: %s", cid, exc)
+                results.append({
+                    "camera_id": cid,
+                    "success": False,
+                    "error": str(exc),
+                })
 
         successful = [r for r in results if r.get("success")]
         flooded_count = sum(1 for r in successful if r.get("flood_detected"))

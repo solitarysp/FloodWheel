@@ -16,6 +16,17 @@ logger = logging.getLogger(__name__)
 class GeminiClient:
     """Production client for Gemini Multimodal Vision API."""
 
+    # Global lock guaranteeing strictly 1 image analysis at any given moment to prevent 429
+    _analysis_lock: Optional[asyncio.Lock] = None
+    _last_call_timestamp: float = 0.0
+    _min_call_interval: float = 3.5  # Minimum seconds between consecutive requests to stay under 15 RPM
+
+    @classmethod
+    def _get_lock(cls) -> asyncio.Lock:
+        if cls._analysis_lock is None:
+            cls._analysis_lock = asyncio.Lock()
+        return cls._analysis_lock
+
     def __init__(self, api_key: Optional[str] = None, model_name: Optional[str] = None):
         self.api_key = api_key or settings.GEMINI_API_KEY
         self.primary_model = model_name or settings.GEMINI_MODEL
@@ -51,11 +62,43 @@ class GeminiClient:
         location_hint: Optional[str] = None,
         max_retries: int = 3,
     ) -> Tuple[str, str, float, Optional[int]]:
-        """Analyzes an image using Gemini Vision with exponential backoff.
+        """Analyzes an image using Gemini Vision with strict 1-at-a-time concurrency lock.
 
         Returns:
             Tuple[raw_response_text, model_used, elapsed_seconds, tokens_used]
         """
+        # Global lock: strictly 1 image analysis at any given moment
+        lock = self._get_lock()
+        async with lock:
+            # Enforce polite spacing interval between consecutive requests to prevent 429
+            now = time.time()
+            elapsed_since_last = now - GeminiClient._last_call_timestamp
+            if elapsed_since_last < GeminiClient._min_call_interval:
+                sleep_needed = GeminiClient._min_call_interval - elapsed_since_last
+                logger.info(
+                    "Pacing Gemini API requests to prevent 429 (sleeping %.2fs before next request)",
+                    sleep_needed,
+                )
+                await asyncio.sleep(sleep_needed)
+
+            try:
+                return await self._execute_analysis_with_retries(
+                    image_bytes=image_bytes,
+                    camera_angle=camera_angle,
+                    location_hint=location_hint,
+                    max_retries=max_retries,
+                )
+            finally:
+                GeminiClient._last_call_timestamp = time.time()
+
+    async def _execute_analysis_with_retries(
+        self,
+        image_bytes: bytes,
+        camera_angle: str = "elevated",
+        location_hint: Optional[str] = None,
+        max_retries: int = 3,
+    ) -> Tuple[str, str, float, Optional[int]]:
+        """Internal execution with multi-model fallback and rate limit backoff."""
         user_prompt = VLRDRPromptBuilder.get_user_prompt(camera_angle=camera_angle, location_hint=location_hint)
         system_instruction = VLRDRPromptBuilder.SYSTEM_INSTRUCTION
 
@@ -106,11 +149,25 @@ class GeminiClient:
                         )
                         break
 
-                    delay = 2 ** (attempt - 1)
-                    logger.warning(
-                        f"Gemini API call failed (model={model}, attempt={attempt}, elapsed={elapsed:.2f}s): {exc}. "
-                        f"Retrying in {delay}s..."
+                    # Check if error is 429 Too Many Requests / Resource Exhausted
+                    is_rate_limit = any(
+                        kw in err_str.upper()
+                        for kw in ["429", "RESOURCE_EXHAUSTED", "RATE LIMIT", "QUOTA EXCEEDED", "TOO MANY REQUESTS"]
                     )
+
+                    if is_rate_limit:
+                        delay = max(10 * attempt, 12)
+                        logger.warning(
+                            f"Gemini 429 Rate Limit hit (model={model}, attempt={attempt}/{max_retries}). "
+                            f"Cooling down for {delay}s before retry..."
+                        )
+                    else:
+                        delay = 2 ** (attempt - 1)
+                        logger.warning(
+                            f"Gemini API call failed (model={model}, attempt={attempt}, elapsed={elapsed:.2f}s): {exc}. "
+                            f"Retrying in {delay}s..."
+                        )
+
                     if attempt < max_retries:
                         await asyncio.sleep(delay)
 
