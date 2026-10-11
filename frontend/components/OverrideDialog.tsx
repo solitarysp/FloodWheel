@@ -1,5 +1,6 @@
 import React, { useState } from "react";
 import { AlertTriangle, Clock, X, ShieldAlert, Check } from "lucide-react";
+import { adminFetch, getAdminUser } from "../lib/auth";
 
 interface OverrideDialogProps {
   isOpen: boolean;
@@ -35,11 +36,12 @@ export const OverrideDialog: React.FC<OverrideDialogProps> = ({
 
     try {
       const apiUrl = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
-      const resp = await fetch(`${apiUrl}/api/v1/admin/zones/${zoneId}/override`, {
+      const adminUser = getAdminUser();
+      const resp = await adminFetch(`${apiUrl}/api/v1/admin/zones/${zoneId}/override`, {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          operator_id: "op-hcmc-central",
+          operator_id: adminUser?.username || "admin",
           override_depth_level: level,
           depth_cm_min: cmMin,
           depth_cm_max: cmMax,

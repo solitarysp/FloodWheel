@@ -9,6 +9,12 @@ class Settings(BaseSettings):
     LOG_LEVEL: str = "INFO"
     SECRET_KEY: str = "dev-secret-key-change-in-production"
 
+    # Admin & Authentication
+    ADMIN_USERNAME: str = "admin"
+    ADMIN_PASSWORD: str = "admin123"
+    ADMIN_JWT_SECRET: str = "floodwheel-admin-jwt-secret-key-change-in-prod"
+    ADMIN_TOKEN_EXPIRE_HOURS: int = 24
+
     # Gemini AI
     GEMINI_API_KEY: str = ""
     GEMINI_API_KEYS: str = ""  # Optional comma-separated list of keys for multi-key rotation
