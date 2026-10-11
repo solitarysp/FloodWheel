@@ -7,13 +7,22 @@ services:
     restart: unless-stopped
     ports:
       - "8000:8000"
+    env_file:
+      - .env
     environment:
-      - ENVIRONMENT=development
-      - LOG_LEVEL=INFO
+      - ENVIRONMENT=${ENVIRONMENT:-development}
+      - LOG_LEVEL=${LOG_LEVEL:-INFO}
+      - SECRET_KEY=${SECRET_KEY:-dev-secret-key-change-in-production}
       - GEMINI_API_KEY=${GEMINI_API_KEY:-}
-      - GEMINI_MODEL=${GEMINI_MODEL:-gemini-3.8-flash}
-      - GEMINI_FALLBACK_MODEL=${GEMINI_FALLBACK_MODEL:-gemini-2.5-flash}
-      - DATABASE_URL=postgresql+asyncpg://postgres:postgres@postgres:5432/floodwheel
+      - GEMINI_API_KEYS=${GEMINI_API_KEYS:-}
+      - GEMINI_MODEL=${GEMINI_MODEL:-gemini-2.5-flash}
+      - GEMINI_FALLBACK_MODEL=${GEMINI_FALLBACK_MODEL:-gemini-2.0-flash}
+      - GEMINI_MIN_CALL_INTERVAL_SECONDS=${GEMINI_MIN_CALL_INTERVAL_SECONDS:-6.0}
+      - FLOOD_QUEUE_INTERVAL_MINUTES=${FLOOD_QUEUE_INTERVAL_MINUTES:-30}
+      - FLOOD_QUEUE_AUTO_START=${FLOOD_QUEUE_AUTO_START:-false}
+      - FLOOD_QUEUE_MAX_CAMERAS_PER_CYCLE=${FLOOD_QUEUE_MAX_CAMERAS_PER_CYCLE:-15}
+      - FLOOD_ANALYSIS_CACHE_MINUTES=${FLOOD_ANALYSIS_CACHE_MINUTES:-5}
+      - DATABASE_URL=postgresql+asyncpg://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD:-postgres}@postgres:5432/${POSTGRES_DB:-floodwheel}
       - REDIS_URL=redis://redis:6379/0
       - CAMERA_BACKEND_URL=http://camera-backend:8001
       - CORS_ORIGINS=["http://localhost:3000","http://127.0.0.1:3000"]
@@ -24,6 +33,8 @@ services:
         condition: service_healthy
       redis:
         condition: service_healthy
+      camera-backend:
+        condition: service_started
     networks:
       - floodwheel-network
 
@@ -35,9 +46,11 @@ services:
     restart: unless-stopped
     ports:
       - "8001:8001"
+    env_file:
+      - .env
     environment:
-      - ENVIRONMENT=development
-      - LOG_LEVEL=INFO
+      - ENVIRONMENT=${ENVIRONMENT:-development}
+      - LOG_LEVEL=${LOG_LEVEL:-INFO}
       - REDIS_URL=redis://redis:6379/1
       - PORT=8001
       - CORS_ORIGINS=["http://localhost:3000","http://127.0.0.1:3000","http://localhost:8000","http://127.0.0.1:8000","http://backend:8000"]
@@ -58,10 +71,15 @@ services:
     restart: unless-stopped
     ports:
       - "3000:3000"
+    env_file:
+      - .env
     environment:
-      - NEXT_PUBLIC_API_URL=http://localhost:8000
+      - NEXT_PUBLIC_API_URL=${NEXT_PUBLIC_API_URL:-http://localhost:8000}
       - NEXT_PUBLIC_MAPBOX_TOKEN=${NEXT_PUBLIC_MAPBOX_TOKEN:-}
       - NEXT_PUBLIC_CARTO_API_KEY=${NEXT_PUBLIC_CARTO_API_KEY:-cb1_4g68_1_c5828bbd64347d68c42bf808}
+      - NEXT_PUBLIC_DEFAULT_CITY=${NEXT_PUBLIC_DEFAULT_CITY:-hcmc}
+      - NEXT_PUBLIC_DEFAULT_LAT=${NEXT_PUBLIC_DEFAULT_LAT:-10.7769}
+      - NEXT_PUBLIC_DEFAULT_LNG=${NEXT_PUBLIC_DEFAULT_LNG:-106.7009}
     volumes:
       - ./frontend:/app
       - /app/node_modules
