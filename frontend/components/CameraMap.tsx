@@ -87,12 +87,14 @@ export const CameraMap: React.FC<CameraMapProps> = ({
   });
 
   // 1. Load Leaflet and MarkerCluster via CDN if not present in runtime
+  // 1. Asynchronously Load Leaflet and MarkerCluster Assets
   useEffect(() => {
     let isMounted = true;
 
     const loadLeafletAssets = async () => {
       if (typeof window === "undefined") return;
 
+      // Leaflet CSS
       if (!document.getElementById("leaflet-css")) {
         const link = document.createElement("link");
         link.id = "leaflet-css";
@@ -101,45 +103,82 @@ export const CameraMap: React.FC<CameraMapProps> = ({
         document.head.appendChild(link);
       }
 
+      // MarkerCluster Core CSS
       if (!document.getElementById("markercluster-css")) {
         const link = document.createElement("link");
         link.id = "markercluster-css";
         link.rel = "stylesheet";
-        link.href = "https://unpkg.com/leaflet.markercluster@1.5.3/dist/MarkerCluster.css";
+        link.href = "https://cdnjs.cloudflare.com/ajax/libs/leaflet.markercluster/1.5.3/MarkerCluster.css";
+        document.head.appendChild(link);
+      }
+
+      // MarkerCluster Default Theme CSS
+      if (!document.getElementById("markercluster-default-css")) {
+        const link = document.createElement("link");
+        link.id = "markercluster-default-css";
+        link.rel = "stylesheet";
+        link.href = "https://cdnjs.cloudflare.com/ajax/libs/leaflet.markercluster/1.5.3/MarkerCluster.Default.css";
         document.head.appendChild(link);
       }
 
       const loadScript = (src: string, id: string): Promise<void> => {
         return new Promise((resolve, reject) => {
-          if (document.getElementById(id)) {
-            resolve();
+          const existing = document.getElementById(id) as HTMLScriptElement | null;
+          if (existing) {
+            if (existing.dataset.loaded === "true") {
+              resolve();
+              return;
+            }
+            existing.addEventListener("load", () => resolve());
+            existing.addEventListener("error", reject);
+            // In case it already finished loading earlier
+            setTimeout(() => resolve(), 300);
             return;
           }
+
           const script = document.createElement("script");
           script.id = id;
           script.src = src;
-          script.async = true;
-          script.onload = () => resolve();
+          script.async = false; // MUST run sequentially to ensure L is defined first
+          script.onload = () => {
+            script.dataset.loaded = "true";
+            resolve();
+          };
           script.onerror = reject;
-          document.body.appendChild(script);
+          document.head.appendChild(script);
         });
       };
 
       try {
+        // Step 1: Load Leaflet core script first
         if (!(window as any).L) {
           await loadScript("https://unpkg.com/leaflet@1.9.4/dist/leaflet.js", "leaflet-js");
         }
-        if (!(window as any).L?.markerClusterGroup) {
+
+        // Verify window.L exists before injecting markercluster plugin
+        if ((window as any).L && typeof (window as any).L.markerClusterGroup !== "function") {
           await loadScript(
-            "https://unpkg.com/leaflet.markercluster@1.5.3/dist/leaflet.markercluster.js",
+            "https://cdnjs.cloudflare.com/ajax/libs/leaflet.markercluster/1.5.3/leaflet.markercluster.js",
             "markercluster-js"
           );
         }
+
+        // Wait briefly for plugin registration on window.L
+        let retries = 0;
+        while (retries < 25 && !(window as any).L?.markerClusterGroup) {
+          await new Promise((r) => setTimeout(r, 60));
+          retries++;
+        }
+
         if (isMounted) {
           setIsMapReady(true);
         }
       } catch (err) {
-        console.error("Failed to load Leaflet scripts:", err);
+        console.error("Failed to load Leaflet or MarkerCluster scripts:", err);
+        // Still allow map to initialize with standard layerGroup fallback
+        if (isMounted && (window as any).L) {
+          setIsMapReady(true);
+        }
       }
     };
 
@@ -183,33 +222,39 @@ export const CameraMap: React.FC<CameraMapProps> = ({
         maxZoom: 20,
       }).addTo(map);
 
-      // Initialize Cluster Group with flood-sensitive badge coloring
-      const clusterGroup = L.markerClusterGroup({
-        chunkedLoading: true,
-        maxClusterRadius: 50,
-        spiderfyOnMaxZoom: true,
-        showCoverageOnHover: false,
-        iconCreateFunction: (cluster: any) => {
-          const count = cluster.getChildCount();
-          const markers = cluster.getAllChildMarkers();
-          const hasFlood = markers.some((m: any) => m.options?.isFlooded);
+      // Initialize Cluster Group or fallback to standard Layer Group if plugin failed
+      let clusterGroup: any;
+      if (typeof L.markerClusterGroup === "function") {
+        clusterGroup = L.markerClusterGroup({
+          chunkedLoading: true,
+          maxClusterRadius: 50,
+          spiderfyOnMaxZoom: true,
+          showCoverageOnHover: false,
+          iconCreateFunction: (cluster: any) => {
+            const count = cluster.getChildCount();
+            const markers = cluster.getAllChildMarkers();
+            const hasFlood = markers.some((m: any) => m.options?.isFlooded);
 
-          let sizeClass = "cluster-badge-sm w-9 h-9";
-          if (count >= 15 && count < 60) {
-            sizeClass = "cluster-badge-md w-11 h-11";
-          } else if (count >= 60) {
-            sizeClass = "cluster-badge-lg w-13 h-13";
-          }
+            let sizeClass = "cluster-badge-sm w-9 h-9";
+            if (count >= 15 && count < 60) {
+              sizeClass = "cluster-badge-md w-11 h-11";
+            } else if (count >= 60) {
+              sizeClass = "cluster-badge-lg w-13 h-13";
+            }
 
-          const floodBadgeClass = hasFlood ? "cluster-has-flood" : "";
+            const floodBadgeClass = hasFlood ? "cluster-has-flood" : "";
 
-          return L.divIcon({
-            html: `<div class="custom-cluster-badge ${sizeClass} ${floodBadgeClass}"><span>${count}</span></div>`,
-            className: "",
-            iconSize: L.point(40, 40),
-          });
-        },
-      });
+            return L.divIcon({
+              html: `<div class="custom-cluster-badge ${sizeClass} ${floodBadgeClass}"><span>${count}</span></div>`,
+              className: "",
+              iconSize: L.point(40, 40),
+            });
+          },
+        });
+      } else {
+        console.warn("L.markerClusterGroup not detected; falling back to L.layerGroup()");
+        clusterGroup = L.layerGroup();
+      }
 
       map.addLayer(clusterGroup);
 
@@ -308,7 +353,11 @@ export const CameraMap: React.FC<CameraMapProps> = ({
       markersMapRef.current.set(cam.id, marker);
     });
 
-    clusterGroup.addLayers(newMarkers);
+    if (typeof clusterGroup.addLayers === "function") {
+      clusterGroup.addLayers(newMarkers);
+    } else {
+      newMarkers.forEach((m) => clusterGroup.addLayer(m));
+    }
   }, [displayedCameras, isMapReady]);
 
   // 4. Center selected camera if specified
