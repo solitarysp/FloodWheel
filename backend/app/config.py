@@ -11,8 +11,10 @@ class Settings(BaseSettings):
 
     # Gemini AI
     GEMINI_API_KEY: str = ""
+    GEMINI_API_KEYS: str = ""  # Optional comma-separated list of keys for multi-key rotation
     GEMINI_MODEL: str = "gemini-3.8-flash"
     GEMINI_FALLBACK_MODEL: str = "gemini-2.5-flash"
+    GEMINI_MIN_CALL_INTERVAL_SECONDS: float = 6.0  # Safe pacing (6.0s = max 10 RPM, well under 15 RPM)
 
     # Storage & DB
     DATABASE_URL: str = "postgresql+asyncpg://postgres:postgres@postgres:5432/floodwheel"
@@ -20,7 +22,11 @@ class Settings(BaseSettings):
 
     # Background Automated AI Analysis Queue
     FLOOD_QUEUE_INTERVAL_MINUTES: int = 30
-    FLOOD_QUEUE_AUTO_START: bool = True
+    FLOOD_QUEUE_AUTO_START: bool = False  # Set to False by default to prevent draining quota unexpectedly
+    FLOOD_QUEUE_MAX_CAMERAS_PER_CYCLE: int = 15  # Limit cameras per cycle to stay well within daily quota
+
+    # Smart Analysis Cache TTL (minutes)
+    FLOOD_ANALYSIS_CACHE_MINUTES: int = 5  # Reuse recent AI analysis within 5 minutes unless forced
 
     # Microservices
     CAMERA_BACKEND_URL: str = "http://camera-backend:8001"

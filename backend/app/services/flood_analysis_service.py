@@ -6,13 +6,14 @@ database persistence of flood readings, and multi-camera zone aggregation.
 
 import asyncio
 import base64
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 import json
 import logging
 from typing import Any, Dict, List, Optional
 from sqlalchemy import desc, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.config import settings
 from app.db.session import AsyncSessionLocal
 from app.models.db_models import Camera, FloodReadingDB, FloodZone
 from app.models.flood_reading import AnalysisResponse, FloodReading
@@ -39,8 +40,52 @@ class FloodAnalysisService:
         session: AsyncSession,
         camera_id: str,
         image_base64: Optional[str] = None,
+        force_refresh: bool = False,
     ) -> AnalysisResponse:
         """Executes flood depth analysis on a camera snapshot and updates zone aggregation."""
+        # Smart Analysis Cache Check (Phương án 4: Reuse recent AI analysis within cache TTL)
+        cache_minutes = getattr(settings, "FLOOD_ANALYSIS_CACHE_MINUTES", 5)
+        if not image_base64 and not force_refresh and cache_minutes > 0:
+            cache_cutoff = datetime.now(timezone.utc) - timedelta(minutes=cache_minutes)
+            stmt = (
+                select(FloodReadingDB)
+                .where(
+                    FloodReadingDB.camera_id == camera_id,
+                    FloodReadingDB.timestamp >= cache_cutoff,
+                )
+                .order_by(desc(FloodReadingDB.timestamp))
+                .limit(1)
+            )
+            res = await session.execute(stmt)
+            cached_reading = res.scalars().first()
+            if cached_reading:
+                age_sec = (datetime.now(timezone.utc) - cached_reading.timestamp).total_seconds()
+                logger.info(
+                    "Serving cached AI flood reading for camera %s (age: %.1fs, cache TTL: %dm)",
+                    camera_id,
+                    age_sec,
+                    cache_minutes,
+                )
+                reading = FloodReading(
+                    camera_id=cached_reading.camera_id,
+                    timestamp=cached_reading.timestamp,
+                    flood_detected=cached_reading.flood_detected,
+                    confidence_score=cached_reading.confidence_score,
+                    depth_level=cached_reading.depth_level,
+                    depth_estimate_cm_min=cached_reading.depth_estimate_cm_min,
+                    depth_estimate_cm_max=cached_reading.depth_estimate_cm_max,
+                    reference_objects_used=cached_reading.get_reference_objects(),
+                    reasoning=cached_reading.reasoning,
+                    alert_message=cached_reading.alert_message,
+                )
+                return AnalysisResponse(
+                    success=True,
+                    reading=reading,
+                    inference_time_ms=0.0,
+                    model_used="cache-hit",
+                    tokens_used=0,
+                )
+
         # 1. Resolve camera details
         cam = await CameraRegistry.get_by_id(session, camera_id)
         camera_name = cam.name if cam else camera_id
@@ -224,11 +269,12 @@ class FloodAnalysisService:
                         "alert_message": res.reading.alert_message,
                         "inference_time_ms": 0.0,
                     })
-                else:
+                elif res.model_used == "cache-hit":
                     results.append({
                         "camera_id": cid,
                         "success": True,
                         "skipped": False,
+                        "cached": True,
                         "depth_level": res.reading.depth_level,
                         "depth_cm_min": res.reading.depth_estimate_cm_min,
                         "depth_cm_max": res.reading.depth_estimate_cm_max,
@@ -237,8 +283,25 @@ class FloodAnalysisService:
                         "alert_message": res.reading.alert_message,
                         "inference_time_ms": res.inference_time_ms,
                     })
-                    # Polite pacing delay between consecutive AI scans
-                    await asyncio.sleep(2.5)
+                    # Minimal delay for cache hits
+                    await asyncio.sleep(0.5)
+                else:
+                    results.append({
+                        "camera_id": cid,
+                        "success": True,
+                        "skipped": False,
+                        "cached": False,
+                        "depth_level": res.reading.depth_level,
+                        "depth_cm_min": res.reading.depth_estimate_cm_min,
+                        "depth_cm_max": res.reading.depth_estimate_cm_max,
+                        "flood_detected": res.reading.flood_detected,
+                        "confidence_score": res.reading.confidence_score,
+                        "alert_message": res.reading.alert_message,
+                        "inference_time_ms": res.inference_time_ms,
+                    })
+                    # Polite pacing delay between consecutive AI scans (Phương án 1)
+                    scan_delay = float(getattr(settings, "GEMINI_MIN_CALL_INTERVAL_SECONDS", 6.0)) + 1.0
+                    await asyncio.sleep(scan_delay)
             except Exception as exc:
                 logger.error("Error analyzing camera %s in batch: %s", cid, exc)
                 results.append({

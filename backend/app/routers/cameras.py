@@ -26,6 +26,7 @@ flood_analysis_service = FloodAnalysisService()
 
 class CameraAnalyzeRequest(BaseModel):
     image_base64: Optional[str] = Field(None, description="Optional base64 JPEG snapshot frame")
+    force_refresh: Optional[bool] = Field(False, description="Bypass recent analysis cache and force fresh AI scan")
 
 
 def _convert_external_camera(raw: dict) -> CameraResponse:
@@ -190,10 +191,12 @@ async def analyze_camera_snapshot(
 ):
     """Captures camera frame and executes Gemini Vision VLRDR flood depth analysis."""
     image_b64 = payload.image_base64 if payload else None
+    force_ref = payload.force_refresh if payload else False
     return await flood_analysis_service.analyze_single_camera(
         session=db,
         camera_id=camera_id,
         image_base64=image_b64,
+        force_refresh=force_ref,
     )
 
 

@@ -225,6 +225,11 @@ class FloodAnalysisQueue:
         except Exception as exc:
             logger.warning("Could not discover cameras from local DB: %s", exc)
 
+        max_cams = getattr(settings, "FLOOD_QUEUE_MAX_CAMERAS_PER_CYCLE", 15)
+        if len(cameras) > max_cams:
+            logger.info("Capping cycle discovery to %d cameras (out of %d) to conserve quota.", max_cams, len(cameras))
+            return cameras[:max_cams]
+
         return cameras
 
     async def _process_camera(self, camera_id: str, camera_name: Optional[str] = None) -> Dict[str, Any]:
@@ -254,11 +259,14 @@ class FloodAnalysisQueue:
                     self._record_result(item)
                     return item
 
+                is_cached = (res.model_used == "cache-hit")
                 item = {
                     "camera_id": camera_id,
                     "camera_name": camera_name or camera_id,
                     "success": True,
                     "skipped": False,
+                    "cached": is_cached,
+                    "model_used": res.model_used,
                     "flood_detected": res.reading.flood_detected,
                     "depth_level": res.reading.depth_level,
                     "depth_cm_min": res.reading.depth_estimate_cm_min,
@@ -365,11 +373,15 @@ class FloodAnalysisQueue:
                     self._queue.task_done()
                     await self._sync_state_to_redis()
 
-                    # Polite rate throttle: 0.3s for skipped default frames, 3.0s after AI scans to avoid 429
+                    # Polite rate throttle:
+                    # 0.3s for skipped default frames, 0.5s for cache hits, safe pacing (>= 7.0s) after real AI scans
                     if res.get("skipped"):
                         await asyncio.sleep(0.3)
+                    elif res.get("cached"):
+                        await asyncio.sleep(0.5)
                     else:
-                        await asyncio.sleep(3.0)
+                        delay = float(getattr(settings, "GEMINI_MIN_CALL_INTERVAL_SECONDS", 6.0)) + 1.0
+                        await asyncio.sleep(delay)
 
                 # ----------------- 3. CYCLE FINISHED -----------------
                 # Sau lần chạy cuối cùng: cập nhật thời gian hoàn thành

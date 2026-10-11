@@ -178,9 +178,12 @@ sequenceDiagram
    - Nếu camera đang mất kết nối và chỉ trả về ảnh giả lập hoặc banner lỗi, hệ thống đánh dấu trạng thái `skipped-default-image` và **không gửi payload lên Gemini**. Điều này giúp loại bỏ 100% chi phí token lãng phí vào ảnh không có giá trị thực tế.
 3. **Cơ chế điều tiết gọi API AI (`GeminiClient`)**:
    - **Global Lock (`asyncio.Lock`)**: Đảm bảo toàn hệ thống chỉ có đúng 1 yêu cầu suy luận AI được xử lý đồng thời.
-   - **Pacing Interval**: Áp dụng thời gian chờ cưỡng bức tối thiểu 3.5 giây giữa 2 lượt gọi liên tiếp nhằm tuân thủ giới hạn 15 RPM (Requests Per Minute).
+   - **Pacing Interval an toàn (`GEMINI_MIN_CALL_INTERVAL_SECONDS = 6.0s`)**: Áp dụng thời gian chờ cưỡng bức tối thiểu 6.0 giây giữa 2 lượt gọi liên tiếp nhằm khống chế tần suất tối đa $\approx 10\text{ RPM}$, luôn nằm dưới ngưỡng an toàn 15 RPM của Google Gemini.
+   - **Xoay vòng đa khóa API (Multi-key Rotation & 429 Failover)**: Cấu hình danh sách nhiều key qua `GEMINI_API_KEYS`. Khi một key chạm quota (429), key đó lập tức vào trạng thái cooldown 30s và hệ thống tự động tráo sang key tiếp theo trong pool.
+   - **Bộ nhớ đệm thông minh (Smart Analysis Cache)**: Tái sử dụng kết quả trong vòng 5 phút (`FLOOD_ANALYSIS_CACHE_MINUTES = 5`), trả về kết quả `cache-hit` tức thì với 0 token tiêu thụ.
+   - **Giới hạn chu kỳ nền**: Background Queue chỉ quét tối đa 15 camera ưu tiên mỗi chu kỳ (`FLOOD_QUEUE_MAX_CAMERAS_PER_CYCLE = 15`) và mặc định tắt tự chạy (`FLOOD_QUEUE_AUTO_START = false`) để bảo toàn quota ngày (1,500 RPD).
    - **Chuỗi mô hình dự phòng (Model Fallback Chain)**:
-     $$\text{gemini-2.5-flash} \longrightarrow \text{gemini-2.0-flash} \longrightarrow \text{gemini-1.5-flash} \longrightarrow \text{gemini-3.8-flash} \longrightarrow \text{mock-vlrdr-engine}$$
+     $$\text{gemini-2.5-flash} \longrightarrow \text{gemini-2.0-flash} \longrightarrow \text{gemini-1.5-flash} \longrightarrow \text{mock-vlrdr-engine}$$
 4. **Phương pháp suy luận vật chuẩn thị giác VLRDR (`VLRDRPromptBuilder`)**:
    - Thay vì cảm biến thủy văn chôn dưới nước, AI sử dụng kích thước vật lý của các phương tiện và hạ tầng giao thông đô thị Việt Nam làm thước đo:
      - **Xe máy (Honda Wave, Vision, Air Blade)**: Đường kính bánh xe $\approx 50\text{ cm}$.
