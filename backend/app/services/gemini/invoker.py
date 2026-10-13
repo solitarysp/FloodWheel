@@ -28,7 +28,7 @@ class GeminiInvoker:
 
             config_kwargs: Dict[str, Any] = {
                 "system_instruction": system_instruction,
-                "temperature": 0.1,
+                "temperature": 0.0,
                 "response_mime_type": "application/json",
             }
 
@@ -51,7 +51,7 @@ class GeminiInvoker:
             gen_model = client.GenerativeModel(
                 model_name=model,
                 system_instruction=system_instruction,
-                generation_config={"temperature": 0.1, "response_mime_type": "application/json"},
+                generation_config={"temperature": 0.0, "response_mime_type": "application/json"},
             )
             response = await asyncio.to_thread(gen_model.generate_content, [user_prompt, pil_image])
             return response.text, None
