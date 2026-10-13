@@ -58,3 +58,16 @@ async def init_db() -> None:
                 await conn.execute(text("ALTER TABLE cameras ADD COLUMN IF NOT EXISTS video_url VARCHAR(512);"))
         except Exception as col_err:
             logger.debug(f"video_url column check note: {col_err}")
+
+    # 4. Clean up any stale QUEUED or PROCESSING tasks from previous crashes/restarts
+    try:
+        async with engine.begin() as conn:
+            await conn.execute(
+                text(
+                    "UPDATE ai_queue_tasks SET status = 'FAILED', error_message = 'Interrupted by server restart' "
+                    "WHERE status IN ('QUEUED', 'PROCESSING');"
+                )
+            )
+    except Exception as reset_err:
+        logger.debug(f"ai_queue_tasks recovery note: {reset_err}")
+

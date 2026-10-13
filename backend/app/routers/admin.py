@@ -244,7 +244,58 @@ async def update_queue_config(
     }
 
 
+@router.get("/queue/history")
+async def get_admin_queue_history(
+    page: int = Query(1, ge=1),
+    page_size: int = Query(15, ge=1, le=100),
+    status: Optional[str] = Query(None),
+    task_type: Optional[str] = Query(None),
+    search: Optional[str] = Query(None),
+    db: AsyncSession = Depends(get_db),
+    current_admin: AdminUser = Depends(get_current_admin),
+) -> Dict[str, Any]:
+    """Retrieves paginated AI queue history from PostgreSQL for the Admin Monitor."""
+    return await flood_queue_service.get_history(
+        session=db,
+        page=page,
+        page_size=page_size,
+        status=status,
+        task_type=task_type,
+        search=search,
+    )
+
+
+@router.get("/queue/history/{task_id}")
+async def get_admin_queue_history_detail(
+    task_id: str,
+    db: AsyncSession = Depends(get_db),
+    current_admin: AdminUser = Depends(get_current_admin),
+) -> Dict[str, Any]:
+    """Retrieves complete audit details for a specific AI queue task."""
+    detail = await flood_queue_service.get_history_detail(session=db, task_id=task_id)
+    if not detail:
+        raise HTTPException(status_code=404, detail=f"Không tìm thấy tác vụ AI #{task_id}.")
+    return {"success": True, "task": detail}
+
+
+@router.delete("/queue/history")
+async def clear_admin_queue_history(
+    db: AsyncSession = Depends(get_db),
+    current_admin: AdminUser = Depends(get_current_admin),
+) -> Dict[str, Any]:
+    """Purges all AI queue execution history from PostgreSQL database."""
+    deleted_count = await flood_queue_service.clear_history(session=db)
+    flood_queue_service.clear_recent_results()
+    logger.info("Admin %s cleared %d AI queue task history records.", current_admin.username, deleted_count)
+    return {
+        "success": True,
+        "deleted_count": deleted_count,
+        "message": f"Đã xóa {deleted_count} bản ghi lịch sử hàng đợi AI trong database.",
+    }
+
+
 # ===================== AI READINGS MANAGEMENT =====================
+
 
 @router.delete("/readings")
 async def clear_all_ai_readings(
@@ -478,10 +529,14 @@ async def admin_analyze_batch_cameras(
 
     for cam_id in req.camera_ids:
         try:
-            res = await flood_analysis_service.analyze_single_camera(
-                session=db,
+            res: AnalysisResponse = await flood_queue_service.submit_task(
+                task_type="batch_camera",
+                source="admin_dashboard",
+                params={"force_refresh": req.force_refresh},
                 camera_id=cam_id,
-                force_refresh=req.force_refresh,
+                priority=5,
+                wait_result=True,
+                timeout=60.0,
             )
             is_skipped = (res.model_used == "skipped-default-image")
             if is_skipped:
@@ -539,11 +594,15 @@ async def admin_analyze_single_camera(
     db: AsyncSession = Depends(get_db),
     current_admin: AdminUser = Depends(get_current_admin),
 ):
-    """Triggers immediate on-demand AI flood analysis for a single camera."""
-    res = await flood_analysis_service.analyze_single_camera(
-        session=db,
+    """Triggers immediate on-demand AI flood analysis for a single camera via AI Queue."""
+    res: AnalysisResponse = await flood_queue_service.submit_task(
+        task_type="single_camera",
+        source="admin_dashboard",
+        params={"force_refresh": force_refresh},
         camera_id=camera_id,
-        force_refresh=force_refresh,
+        priority=1,
+        wait_result=True,
+        timeout=60.0,
     )
     is_skipped = (res.model_used == "skipped-default-image")
     return {
@@ -558,6 +617,7 @@ async def admin_analyze_single_camera(
         "model_used": res.model_used,
         "reading": res.reading.model_dump(mode="json") if hasattr(res.reading, "model_dump") else None,
     }
+
 
 
 # ===================== ZONE OVERRIDES =====================

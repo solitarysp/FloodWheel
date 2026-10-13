@@ -186,15 +186,24 @@ async def analyze_camera_snapshot(
     payload: Optional[CameraAnalyzeRequest] = None,
     db: AsyncSession = Depends(get_db),
 ):
-    """Captures camera frame and executes Gemini Vision VLRDR flood depth analysis."""
+    """Captures camera frame and executes Gemini Vision VLRDR flood depth analysis via AI Queue."""
     image_b64 = payload.image_base64 if payload else None
     force_ref = payload.force_refresh if payload else False
-    return await flood_analysis_service.analyze_single_camera(
-        session=db,
+    from app.services.flood_queue_service import flood_queue_service
+
+    return await flood_queue_service.submit_task(
+        task_type="single_camera",
+        source="camera_grid",
+        params={
+            "image_base64": image_b64,
+            "force_refresh": force_ref,
+        },
         camera_id=camera_id,
-        image_base64=image_b64,
-        force_refresh=force_ref,
+        priority=1,
+        wait_result=True,
+        timeout=60.0,
     )
+
 
 
 @router.post("", response_model=CameraResponse, status_code=status.HTTP_201_CREATED)

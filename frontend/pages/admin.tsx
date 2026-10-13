@@ -35,7 +35,13 @@ import {
   Sparkles,
   Flame,
   RotateCcw,
+  FileText,
+  Copy,
+  ChevronLeft,
+  ChevronRight,
+  Info,
 } from "lucide-react";
+
 
 export default function AdminPage() {
   const [isAuthenticated, setIsAuthenticated] = useState<boolean>(false);
@@ -72,7 +78,31 @@ export default function AdminPage() {
   const [analyzingCameraId, setAnalyzingCameraId] = useState<string | null>(null);
   const [isBatchAnalyzing, setIsBatchAnalyzing] = useState<boolean>(false);
 
+  // AI Queue DB History State
+  const [queueHistory, setQueueHistory] = useState<any[]>([]);
+  const [queueHistoryTotal, setQueueHistoryTotal] = useState<number>(0);
+  const [queueHistoryPage, setQueueHistoryPage] = useState<number>(1);
+  const [queueHistoryPageSize] = useState<number>(12);
+  const [queueHistoryTotalPages, setQueueHistoryTotalPages] = useState<number>(1);
+  const [queueHistoryStats, setQueueHistoryStats] = useState<any>({
+    total_calls: 0,
+    completed_count: 0,
+    flooded_count: 0,
+    failed_count: 0,
+    skipped_count: 0,
+    avg_inference_ms: 0,
+  });
+  const [queueHistoryStatusFilter, setQueueHistoryStatusFilter] = useState<string>("ALL");
+  const [queueHistoryTypeFilter, setQueueHistoryTypeFilter] = useState<string>("all");
+  const [queueHistorySearch, setQueueHistorySearch] = useState<string>("");
+  const [queueHistoryLoading, setQueueHistoryLoading] = useState<boolean>(false);
+  const [selectedTaskDetail, setSelectedTaskDetail] = useState<any | null>(null);
+  const [isDetailModalLoading, setIsDetailModalLoading] = useState<boolean>(false);
+  const [copiedRaw, setCopiedRaw] = useState<boolean>(false);
+  const [copiedPrompt, setCopiedPrompt] = useState<boolean>(false);
+
   const apiUrl = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
+
 
   // Check auth on mount
   useEffect(() => {
@@ -188,6 +218,7 @@ export default function AdminPage() {
       if (resp.ok) {
         showToast("success", "Đã kích hoạt quét ngay lập tức!");
         await fetchDashboardData();
+        await fetchQueueHistory(1);
       } else {
         throw new Error("Không thể kích hoạt hàng đợi.");
       }
@@ -220,6 +251,7 @@ export default function AdminPage() {
       if (resp.ok) {
         showToast("success", "Đã tiếp tục hàng đợi quét tự động.");
         await fetchDashboardData();
+        await fetchQueueHistory(1);
       }
     } catch (err: any) {
       showToast("error", err.message);
@@ -228,7 +260,90 @@ export default function AdminPage() {
     }
   };
 
+  // Fetch paginated AI Queue History from DB
+  const fetchQueueHistory = async (page = queueHistoryPage) => {
+    if (!isAdminAuthenticated()) return;
+    setQueueHistoryLoading(true);
+    try {
+      const params = new URLSearchParams({
+        page: String(page),
+        page_size: String(queueHistoryPageSize),
+      });
+      if (queueHistoryStatusFilter && queueHistoryStatusFilter !== "ALL") {
+        params.append("status", queueHistoryStatusFilter);
+      }
+      if (queueHistoryTypeFilter && queueHistoryTypeFilter !== "all") {
+        params.append("task_type", queueHistoryTypeFilter);
+      }
+      if (queueHistorySearch.trim()) {
+        params.append("search", queueHistorySearch.trim());
+      }
+
+      const res = await adminFetch(`${apiUrl}/api/v1/admin/queue/history?${params.toString()}`);
+      if (res.ok) {
+        const data = await res.json();
+        setQueueHistory(data.items || []);
+        setQueueHistoryTotal(data.total || 0);
+        setQueueHistoryPage(data.page || 1);
+        setQueueHistoryTotalPages(data.total_pages || 1);
+        if (data.stats) {
+          setQueueHistoryStats(data.stats);
+        }
+      }
+    } catch (err: any) {
+      console.error("Failed to fetch queue history:", err);
+    } finally {
+      setQueueHistoryLoading(false);
+    }
+  };
+
+  const handleViewTaskDetail = async (taskId: string) => {
+    setIsDetailModalLoading(true);
+    try {
+      const res = await adminFetch(`${apiUrl}/api/v1/admin/queue/history/${taskId}`);
+      if (res.ok) {
+        const data = await res.json();
+        setSelectedTaskDetail(data.task);
+      } else {
+        showToast("error", "Không thể tải chi tiết tác vụ.");
+      }
+    } catch (err: any) {
+      showToast("error", `Lỗi tải chi tiết: ${err.message}`);
+    } finally {
+      setIsDetailModalLoading(false);
+    }
+  };
+
+  const handleClearQueueHistory = async () => {
+    if (!confirm("Bạn có chắc chắn muốn xóa toàn bộ lịch sử hàng đợi AI trong database?")) return;
+    setActionLoading("clear-history");
+    try {
+      const res = await adminFetch(`${apiUrl}/api/v1/admin/queue/history`, {
+        method: "DELETE",
+      });
+      if (res.ok) {
+        showToast("success", "Đã xóa toàn bộ lịch sử hàng đợi AI trong database.");
+        await fetchQueueHistory(1);
+        await fetchDashboardData();
+      } else {
+        showToast("error", "Không thể xóa lịch sử hàng đợi.");
+      }
+    } catch (err: any) {
+      showToast("error", `Lỗi xóa lịch sử: ${err.message}`);
+    } finally {
+      setActionLoading(null);
+    }
+  };
+
+  // Refetch queue history on tab change or filter changes
+  useEffect(() => {
+    if (isAuthenticated && activeTab === "queue") {
+      fetchQueueHistory(1);
+    }
+  }, [isAuthenticated, activeTab, queueHistoryStatusFilter, queueHistoryTypeFilter]);
+
   // Camera actions
+
   const handleUpdateCameraStatus = async (cameraId: string, newStatus: string) => {
     setActionLoading(`cam-${cameraId}`);
     try {
@@ -1010,92 +1125,358 @@ export default function AdminPage() {
                   </div>
                 )}
 
-                {/* Recent scan results */}
-                <div className="bg-white rounded-3xl p-6 border border-slate-200/80 shadow-sm">
-                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-4">
-                    <h3 className="text-base font-bold text-slate-900">Kết Quả Phân Tích Gần Nhất</h3>
-                    <button
-                      onClick={handleClearAllReadings}
-                      disabled={actionLoading === "clear-readings"}
-                      className="px-3 py-1.5 rounded-xl border border-rose-200 text-rose-600 hover:bg-rose-50 transition text-xs font-bold flex items-center gap-1.5 shadow-xs self-start sm:self-auto"
-                      title="Xóa toàn bộ kết quả quét AI trong database và làm sạch hàng đợi"
-                    >
-                      <Trash2 className="w-3.5 h-3.5 text-rose-500" />
-                      <span>{actionLoading === "clear-readings" ? "Đang xóa..." : "Xóa All Kết Quả"}</span>
-                    </button>
+                {/* ================= AI QUEUE DATABASE HISTORY AUDIT TABLE ================= */}
+                <div className="bg-white rounded-3xl p-6 border border-slate-200/80 shadow-sm space-y-5">
+                  {/* Header & Main Actions */}
+                  <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4">
+                    <div>
+                      <div className="flex items-center gap-2.5">
+                        <div className="w-8 h-8 rounded-xl bg-indigo-50 text-indigo-600 flex items-center justify-center font-bold">
+                          <FileText className="w-4 h-4" />
+                        </div>
+                        <div>
+                          <h3 className="text-base font-bold text-slate-900">
+                            Lịch Sử Chi Tiết Các Lệnh Gọi AI Trong Database (AI Queue Audit History)
+                          </h3>
+                          <p className="text-xs text-slate-500 mt-0.5">
+                            Tất cả lệnh gọi AI từ chu kỳ tự động, quét trực tiếp camera, và tải ảnh demo đều được đưa vào hàng đợi và lưu trữ chi tiết vào PostgreSQL.
+                          </p>
+                        </div>
+                      </div>
+                    </div>
+
+                    <div className="flex items-center gap-2 self-start lg:self-auto">
+                      <button
+                        onClick={() => fetchQueueHistory(queueHistoryPage)}
+                        disabled={queueHistoryLoading}
+                        className="px-3 py-2 rounded-xl border border-slate-200 hover:bg-slate-50 text-slate-700 transition text-xs font-bold flex items-center gap-1.5 shadow-xs"
+                        title="Tải lại lịch sử hàng đợi từ database"
+                      >
+                        <RefreshCw className={`w-3.5 h-3.5 ${queueHistoryLoading ? "animate-spin text-indigo-600" : "text-slate-500"}`} />
+                        <span>Làm Mới</span>
+                      </button>
+
+                      <button
+                        onClick={handleClearQueueHistory}
+                        disabled={actionLoading === "clear-history"}
+                        className="px-3 py-2 rounded-xl border border-rose-200 text-rose-600 hover:bg-rose-50 transition text-xs font-bold flex items-center gap-1.5 shadow-xs"
+                        title="Xóa toàn bộ lịch sử hàng đợi AI trong database"
+                      >
+                        <Trash2 className="w-3.5 h-3.5 text-rose-500" />
+                        <span>{actionLoading === "clear-history" ? "Đang xóa..." : "Xóa Lịch Sử DB"}</span>
+                      </button>
+                    </div>
                   </div>
-                  {overview?.queue?.recent_results?.length > 0 ? (
-                    <div className="overflow-x-auto">
-                      <table className="w-full text-left text-xs">
-                        <thead>
-                          <tr className="border-b border-slate-200 text-slate-400 font-semibold uppercase tracking-wider">
-                            <th className="pb-3">Camera</th>
-                            <th className="pb-3">Mức Ngập</th>
-                            <th className="pb-3">Độ Sâu (cm)</th>
-                            <th className="pb-3">Trạng Thái</th>
-                            <th className="pb-3">Thời Gian</th>
-                            <th className="pb-3 text-right">Thao Tác</th>
+
+                  {/* Summary Metric Badges */}
+                  <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-2.5">
+                    <div className="p-3 rounded-2xl bg-slate-50 border border-slate-200/70 text-center">
+                      <span className="text-[10px] uppercase font-bold text-slate-400 block tracking-wider">Tổng Lệnh Gọi</span>
+                      <span className="text-lg font-black text-slate-900">{queueHistoryStats.total_calls || 0}</span>
+                    </div>
+
+                    <div className="p-3 rounded-2xl bg-emerald-50/70 border border-emerald-100 text-center">
+                      <span className="text-[10px] uppercase font-bold text-emerald-600 block tracking-wider">Hoàn Thành</span>
+                      <span className="text-lg font-black text-emerald-700">{queueHistoryStats.completed_count || 0}</span>
+                    </div>
+
+                    <div className="p-3 rounded-2xl bg-rose-50/70 border border-rose-100 text-center">
+                      <span className="text-[10px] uppercase font-bold text-rose-600 block tracking-wider">Phát Hiện Ngập</span>
+                      <span className="text-lg font-black text-rose-700">{queueHistoryStats.flooded_count || 0}</span>
+                    </div>
+
+                    <div className="p-3 rounded-2xl bg-slate-50 border border-slate-200/70 text-center">
+                      <span className="text-[10px] uppercase font-bold text-slate-500 block tracking-wider">Bỏ Qua / Cache</span>
+                      <span className="text-lg font-black text-slate-700">{queueHistoryStats.skipped_count || 0}</span>
+                    </div>
+
+                    <div className="p-3 rounded-2xl bg-amber-50/70 border border-amber-100 text-center">
+                      <span className="text-[10px] uppercase font-bold text-amber-600 block tracking-wider">Thất Bại / Lỗi</span>
+                      <span className="text-lg font-black text-amber-700">{queueHistoryStats.failed_count || 0}</span>
+                    </div>
+
+                    <div className="p-3 rounded-2xl bg-indigo-50/70 border border-indigo-100 text-center">
+                      <span className="text-[10px] uppercase font-bold text-indigo-600 block tracking-wider">Độ Trễ TB</span>
+                      <span className="text-lg font-black text-indigo-700">{queueHistoryStats.avg_inference_ms || 0} ms</span>
+                    </div>
+                  </div>
+
+                  {/* Filter Toolbar */}
+                  <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3 pt-2">
+                    {/* Status Tabs */}
+                    <div className="flex flex-wrap items-center gap-1.5 p-1 bg-slate-100 rounded-2xl">
+                      {[
+                        { key: "ALL", label: "Tất Cả" },
+                        { key: "COMPLETED", label: "Hoàn Thành" },
+                        { key: "FLOODED", label: "Có Ngập" },
+                        { key: "SKIPPED", label: "Bỏ Qua" },
+                        { key: "FAILED", label: "Thất Bại" },
+                      ].map((tab) => (
+                        <button
+                          key={tab.key}
+                          onClick={() => {
+                            setQueueHistoryStatusFilter(tab.key);
+                            setQueueHistoryPage(1);
+                          }}
+                          className={`px-3 py-1.5 rounded-xl text-xs font-bold transition ${
+                            queueHistoryStatusFilter === tab.key
+                              ? "bg-white text-indigo-600 shadow-xs"
+                              : "text-slate-500 hover:text-slate-800"
+                          }`}
+                        >
+                          {tab.label}
+                        </button>
+                      ))}
+                    </div>
+
+                    {/* Right: Search & Type Filter */}
+                    <div className="flex items-center gap-2">
+                      <select
+                        value={queueHistoryTypeFilter}
+                        onChange={(e) => {
+                          setQueueHistoryTypeFilter(e.target.value);
+                          setQueueHistoryPage(1);
+                        }}
+                        className="px-3 py-2 rounded-xl border border-slate-200 text-xs font-semibold text-slate-700 bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                      >
+                        <option value="all">Tất cả nguồn gọi</option>
+                        <option value="cycle_camera">Chu kỳ tự động 30m</option>
+                        <option value="single_camera">Quét trực tiếp camera</option>
+                        <option value="image_upload">Tải ảnh demo</option>
+                        <option value="batch_camera">Quét hàng loạt</option>
+                      </select>
+
+                      <div className="relative">
+                        <Search className="w-3.5 h-3.5 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
+                        <input
+                          type="text"
+                          placeholder="Tìm camera, ID..."
+                          value={queueHistorySearch}
+                          onChange={(e) => setQueueHistorySearch(e.target.value)}
+                          onKeyDown={(e) => {
+                            if (e.key === "Enter") fetchQueueHistory(1);
+                          }}
+                          className="pl-8 pr-3 py-2 rounded-xl border border-slate-200 text-xs w-44 sm:w-56 focus:outline-none focus:ring-2 focus:ring-indigo-500 bg-white"
+                        />
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* History Table */}
+                  <div className="overflow-x-auto rounded-2xl border border-slate-100">
+                    <table className="w-full text-left text-xs">
+                      <thead>
+                        <tr className="bg-slate-50/80 border-b border-slate-200/80 text-slate-400 font-semibold uppercase tracking-wider text-[11px]">
+                          <th className="py-3 px-3.5">Mã & Thời Gian</th>
+                          <th className="py-3 px-3.5">Nguồn / Loại</th>
+                          <th className="py-3 px-3.5">Camera / Đối Tượng</th>
+                          <th className="py-3 px-3.5">Mực Nước (AI)</th>
+                          <th className="py-3 px-3.5">Model & Độ Trễ</th>
+                          <th className="py-3 px-3.5">Hàng Đợi</th>
+                          <th className="py-3 px-3.5">Trạng Thái</th>
+                          <th className="py-3 px-3.5 text-right">Chi Tiết</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-slate-100 font-medium">
+                        {queueHistoryLoading ? (
+                          <tr>
+                            <td colSpan={8} className="py-12 text-center text-slate-400">
+                              <RefreshCw className="w-6 h-6 animate-spin mx-auto text-indigo-500 mb-2" />
+                              <span>Đang tải lịch sử hàng đợi AI từ database...</span>
+                            </td>
                           </tr>
-                        </thead>
-                        <tbody className="divide-y divide-slate-100 font-medium">
-                          {overview.queue.recent_results.map((res: any, idx: number) => (
-                            <tr key={idx} className="hover:bg-slate-50/50">
-                              <td className="py-2.5 font-bold text-slate-800">{res.camera_name || res.camera_id}</td>
-                              <td className="py-2.5">
-                                <span
-                                  className={`px-2 py-0.5 rounded-full font-bold text-[10px] ${
-                                    res.depth_level >= 3
-                                      ? "bg-rose-100 text-rose-700"
-                                      : res.depth_level >= 1
-                                      ? "bg-amber-100 text-amber-700"
-                                      : "bg-emerald-100 text-emerald-700"
-                                  }`}
-                                >
-                                  Level {res.depth_level}
+                        ) : queueHistory.length > 0 ? (
+                          queueHistory.map((item: any) => (
+                            <tr key={item.id} className="hover:bg-slate-50/70 transition">
+                              {/* Task ID & Time */}
+                              <td className="py-3 px-3.5 whitespace-nowrap">
+                                <div className="font-mono text-[11px] font-bold text-indigo-700 bg-indigo-50 px-1.5 py-0.5 rounded inline-block">
+                                  #{item.id.replace("task_", "")}
+                                </div>
+                                <div className="text-[11px] text-slate-400 mt-0.5">
+                                  {item.created_at ? new Date(item.created_at).toLocaleTimeString("vi-VN") : "N/A"}{" "}
+                                  <span className="text-[10px] text-slate-300">
+                                    {item.created_at ? new Date(item.created_at).toLocaleDateString("vi-VN") : ""}
+                                  </span>
+                                </div>
+                              </td>
+
+                              {/* Source / Type */}
+                              <td className="py-3 px-3.5 whitespace-nowrap">
+                                <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${
+                                  item.task_type === "cycle_camera"
+                                    ? "bg-purple-50 text-purple-700 border border-purple-200"
+                                    : item.task_type === "image_upload"
+                                    ? "bg-amber-50 text-amber-700 border border-amber-200"
+                                    : item.task_type === "single_camera"
+                                    ? "bg-blue-50 text-blue-700 border border-blue-200"
+                                    : "bg-slate-100 text-slate-700"
+                                }`}>
+                                  {item.task_type === "cycle_camera"
+                                    ? `Chu kỳ #${item.cycle_id || 1}`
+                                    : item.task_type === "image_upload"
+                                    ? "Demo Upload"
+                                    : item.task_type === "single_camera"
+                                    ? "Quét Camera"
+                                    : "Batch Scan"}
                                 </span>
                               </td>
-                              <td className="py-2.5 text-slate-600">
-                                {res.depth_cm_max ? `${res.depth_cm_min} - ${res.depth_cm_max} cm` : "0 cm"}
-                              </td>
-                              <td className="py-2.5">
-                                {res.skipped ? (
-                                  <span className="text-slate-400 text-[10px] bg-slate-100 px-2 py-0.5 rounded-full">
-                                    Bỏ qua (ảnh default)
-                                  </span>
-                                ) : res.cached ? (
-                                  <span className="text-blue-600 text-[10px] bg-blue-50 px-2 py-0.5 rounded-full">
-                                    Cache-Hit
-                                  </span>
-                                ) : (
-                                  <span className="text-emerald-600 text-[10px] bg-emerald-50 px-2 py-0.5 rounded-full">
-                                    Quét Mới (AI)
-                                  </span>
+
+                              {/* Camera / Target */}
+                              <td className="py-3 px-3.5">
+                                <div className="font-bold text-slate-800 truncate max-w-[160px]" title={item.camera_name || item.camera_id}>
+                                  {item.camera_name || item.camera_id || "Khung hình"}
+                                </div>
+                                {item.camera_id && (
+                                  <div className="text-[10px] font-mono text-slate-400 truncate max-w-[160px]">
+                                    ID: {item.camera_id}
+                                  </div>
                                 )}
                               </td>
-                              <td className="py-2.5 text-slate-400">
-                                {res.timestamp ? new Date(res.timestamp).toLocaleTimeString("vi-VN") : "Vừa xong"}
+
+                              {/* Flood Level & Depth */}
+                              <td className="py-3 px-3.5 whitespace-nowrap">
+                                {item.status === "FAILED" ? (
+                                  <span className="text-rose-600 font-bold text-[11px]">Lỗi phân tích</span>
+                                ) : item.status === "SKIPPED" ? (
+                                  <span className="text-slate-400 font-semibold text-[11px]">Bỏ qua (ảnh default)</span>
+                                ) : (
+                                  <div className="flex items-center gap-1.5">
+                                    <span
+                                      className={`px-2 py-0.5 rounded-full font-bold text-[10px] ${
+                                        (item.depth_level || 0) >= 3
+                                          ? "bg-rose-100 text-rose-700"
+                                          : (item.depth_level || 0) >= 1
+                                          ? "bg-amber-100 text-amber-700"
+                                          : "bg-emerald-100 text-emerald-700"
+                                      }`}
+                                    >
+                                      Level {item.depth_level || 0}
+                                    </span>
+                                    <span className="text-slate-600 font-semibold text-[11px]">
+                                      {item.depth_estimate_cm_max ? `${item.depth_estimate_cm_max}cm` : "0cm"}
+                                    </span>
+                                  </div>
+                                )}
                               </td>
-                              <td className="py-2.5 text-right">
+
+                              {/* Model & Latency */}
+                              <td className="py-3 px-3.5 whitespace-nowrap">
+                                <div className="text-slate-700 font-semibold text-[11px] truncate max-w-[120px]" title={item.model_used || "N/A"}>
+                                  {item.model_used === "cache-hit" ? (
+                                    <span className="text-blue-600 font-bold">Cache-Hit</span>
+                                  ) : (
+                                    item.model_used || "Gemini AI"
+                                  )}
+                                </div>
+                                <div className="text-[10px] text-slate-400">
+                                  {item.inference_time_ms ? `${item.inference_time_ms}ms` : "-"}
+                                  {item.tokens_used ? ` • ${item.tokens_used} tok` : ""}
+                                </div>
+                              </td>
+
+                              {/* Queue Wait */}
+                              <td className="py-3 px-3.5 whitespace-nowrap">
+                                <div className="text-slate-700 font-mono text-[11px]">
+                                  {item.queue_wait_ms !== null && item.queue_wait_ms !== undefined ? `${item.queue_wait_ms}ms` : "-"}
+                                </div>
+                                <div className="text-[10px] text-slate-400">
+                                  {item.duration_ms !== null && item.duration_ms !== undefined ? `Tổng ${item.duration_ms}ms` : ""}
+                                </div>
+                              </td>
+
+                              {/* Status Badge */}
+                              <td className="py-3 px-3.5 whitespace-nowrap">
+                                <span className={`px-2 py-0.5 rounded-full font-bold text-[10px] ${
+                                  item.status === "COMPLETED"
+                                    ? "bg-emerald-100 text-emerald-700"
+                                    : item.status === "SKIPPED"
+                                    ? "bg-slate-100 text-slate-600"
+                                    : item.status === "PROCESSING"
+                                    ? "bg-indigo-100 text-indigo-700 animate-pulse"
+                                    : item.status === "QUEUED"
+                                    ? "bg-blue-100 text-blue-700"
+                                    : "bg-rose-100 text-rose-700"
+                                }`}>
+                                  {item.status}
+                                </span>
+                              </td>
+
+                              {/* Actions */}
+                              <td className="py-3 px-3.5 text-right whitespace-nowrap">
                                 <button
-                                  onClick={() => handleDeleteCameraReading(res.camera_id, res.camera_name)}
-                                  disabled={actionLoading === `del-reading-${res.camera_id}`}
-                                  className="p-1.5 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition"
-                                  title={`Xóa kết quả phân tích của camera ${res.camera_name || res.camera_id}`}
+                                  onClick={() => handleViewTaskDetail(item.id)}
+                                  disabled={isDetailModalLoading}
+                                  className="px-2.5 py-1 rounded-lg bg-indigo-50 hover:bg-indigo-100 text-indigo-700 font-bold text-[11px] transition inline-flex items-center gap-1 shadow-xs"
+                                  title="Xem toàn bộ prompt, raw response, lập luận AI và thông số"
                                 >
-                                  <Trash2 className="w-3.5 h-3.5" />
+                                  <Eye className="w-3.5 h-3.5" />
+                                  <span>Chi Tiết</span>
                                 </button>
                               </td>
                             </tr>
-                          ))}
-                        </tbody>
-                      </table>
+                          ))
+                        ) : (
+                          <tr>
+                            <td colSpan={8} className="py-12 text-center text-slate-400">
+                              Chưa có lệnh gọi AI nào được ghi nhận trong cơ sở dữ liệu.
+                            </td>
+                          </tr>
+                        )}
+                      </tbody>
+                    </table>
+                  </div>
+
+                  {/* Pagination Footer */}
+                  {queueHistoryTotal > 0 && (
+                    <div className="flex flex-col sm:flex-row items-center justify-between gap-3 pt-2 text-xs text-slate-500">
+                      <div>
+                        Hiển thị <strong>{Math.min(queueHistoryTotal, (queueHistoryPage - 1) * queueHistoryPageSize + 1)}</strong> -{" "}
+                        <strong>{Math.min(queueHistoryTotal, queueHistoryPage * queueHistoryPageSize)}</strong> trên tổng số{" "}
+                        <strong>{queueHistoryTotal}</strong> lệnh gọi AI
+                      </div>
+
+                      <div className="flex items-center gap-1.5">
+                        <button
+                          onClick={() => {
+                            if (queueHistoryPage > 1) {
+                              const p = queueHistoryPage - 1;
+                              setQueueHistoryPage(p);
+                              fetchQueueHistory(p);
+                            }
+                          }}
+                          disabled={queueHistoryPage <= 1 || queueHistoryLoading}
+                          className="p-1.5 rounded-xl border border-slate-200 hover:bg-slate-50 disabled:opacity-40 text-slate-600 transition"
+                          title="Trang trước"
+                        >
+                          <ChevronLeft className="w-4 h-4" />
+                        </button>
+
+                        <span className="px-3 py-1 font-bold text-slate-800 bg-slate-100 rounded-xl">
+                          {queueHistoryPage} / {queueHistoryTotalPages}
+                        </span>
+
+                        <button
+                          onClick={() => {
+                            if (queueHistoryPage < queueHistoryTotalPages) {
+                              const p = queueHistoryPage + 1;
+                              setQueueHistoryPage(p);
+                              fetchQueueHistory(p);
+                            }
+                          }}
+                          disabled={queueHistoryPage >= queueHistoryTotalPages || queueHistoryLoading}
+                          className="p-1.5 rounded-xl border border-slate-200 hover:bg-slate-50 disabled:opacity-40 text-slate-600 transition"
+                          title="Trang tiếp theo"
+                        >
+                          <ChevronRight className="w-4 h-4" />
+                        </button>
+                      </div>
                     </div>
-                  ) : (
-                    <div className="text-center py-8 text-xs text-slate-400">Chưa có kết quả quét nào được ghi nhận.</div>
                   )}
                 </div>
               </div>
             )}
+
 
             {/* ================= TAB 2: CAMERAS ================= */}
             {activeTab === "cameras" && (
@@ -2025,6 +2406,288 @@ export default function AdminPage() {
           </div>
         </div>
       )}
+
+      {/* ================= AI QUEUE TASK AUDIT DETAIL MODAL ================= */}
+      {selectedTaskDetail && (
+
+        <div className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-sm flex items-center justify-center p-4 overflow-y-auto animate-in fade-in duration-200">
+          <div className="bg-white rounded-3xl max-w-4xl w-full border border-slate-200 shadow-2xl overflow-hidden my-auto max-h-[92vh] flex flex-col">
+            {/* Header */}
+            <div className="p-5 border-b border-slate-100 flex items-center justify-between bg-slate-50/80">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-2xl bg-indigo-600 text-white flex items-center justify-center shadow-md shadow-indigo-500/20">
+                  <FileText className="w-5 h-5" />
+                </div>
+                <div>
+                  <div className="flex flex-wrap items-center gap-2">
+                    <span className="font-mono text-xs font-bold px-2 py-0.5 rounded-lg bg-indigo-100 text-indigo-700">
+                      #{selectedTaskDetail.id}
+                    </span>
+                    <span className={`text-[11px] font-bold px-2.5 py-0.5 rounded-full ${
+                      selectedTaskDetail.status === "COMPLETED"
+                        ? "bg-emerald-100 text-emerald-700"
+                        : selectedTaskDetail.status === "SKIPPED"
+                        ? "bg-slate-100 text-slate-600"
+                        : selectedTaskDetail.status === "PROCESSING"
+                        ? "bg-indigo-100 text-indigo-700"
+                        : "bg-rose-100 text-rose-700"
+                    }`}>
+                      {selectedTaskDetail.status}
+                    </span>
+                    <span className="text-[11px] font-semibold text-slate-500">
+                      {selectedTaskDetail.task_type === "cycle_camera"
+                        ? `Chu kỳ tự động #${selectedTaskDetail.cycle_id || 1}`
+                        : selectedTaskDetail.task_type === "single_camera"
+                        ? "Quét trực tiếp camera"
+                        : selectedTaskDetail.task_type === "image_upload"
+                        ? "Tải ảnh Demo"
+                        : "Quét hàng loạt"}
+                    </span>
+                  </div>
+                  <h3 className="text-base font-black text-slate-900 mt-0.5">
+                    Chi Tiết Lệnh Gọi AI: {selectedTaskDetail.camera_name || selectedTaskDetail.camera_id || "Khung hình"}
+                  </h3>
+                </div>
+              </div>
+              <button
+                onClick={() => setSelectedTaskDetail(null)}
+                className="p-2 rounded-xl text-slate-400 hover:text-slate-700 hover:bg-slate-100 transition"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            {/* Body */}
+            <div className="p-6 overflow-y-auto space-y-6">
+              {/* Performance Metrics Strip */}
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+                <div className="p-3.5 rounded-2xl bg-slate-50 border border-slate-200/70">
+                  <span className="text-[10px] uppercase font-bold text-slate-400 block tracking-wider">Chờ Queue</span>
+                  <div className="text-lg font-black text-slate-800 mt-0.5">
+                    {selectedTaskDetail.queue_wait_ms !== null && selectedTaskDetail.queue_wait_ms !== undefined
+                      ? `${selectedTaskDetail.queue_wait_ms} ms`
+                      : "0 ms"}
+                  </div>
+                  <span className="text-[10px] text-slate-400 block">Thời gian xếp hàng</span>
+                </div>
+
+                <div className="p-3.5 rounded-2xl bg-indigo-50 border border-indigo-100">
+                  <span className="text-[10px] uppercase font-bold text-indigo-600 block tracking-wider">Độ Trễ AI</span>
+                  <div className="text-lg font-black text-indigo-700 mt-0.5">
+                    {selectedTaskDetail.inference_time_ms !== null && selectedTaskDetail.inference_time_ms !== undefined
+                      ? `${selectedTaskDetail.inference_time_ms} ms`
+                      : "0 ms"}
+                  </div>
+                  <span className="text-[10px] text-indigo-500 block">Thời gian Gemini suy luận</span>
+                </div>
+
+                <div className="p-3.5 rounded-2xl bg-slate-50 border border-slate-200/70">
+                  <span className="text-[10px] uppercase font-bold text-slate-400 block tracking-wider">Tổng Xử Lý</span>
+                  <div className="text-lg font-black text-slate-800 mt-0.5">
+                    {selectedTaskDetail.duration_ms !== null && selectedTaskDetail.duration_ms !== undefined
+                      ? `${selectedTaskDetail.duration_ms} ms`
+                      : "0 ms"}
+                  </div>
+                  <span className="text-[10px] text-slate-400 block">Queue + Stream + AI</span>
+                </div>
+
+                <div className="p-3.5 rounded-2xl bg-slate-50 border border-slate-200/70">
+                  <span className="text-[10px] uppercase font-bold text-slate-400 block tracking-wider">Model & Tokens</span>
+                  <div className="text-sm font-black text-slate-800 mt-0.5 truncate" title={selectedTaskDetail.model_used || "N/A"}>
+                    {selectedTaskDetail.model_used || "N/A"}
+                  </div>
+                  <span className="text-[10px] text-slate-400 block">
+                    {selectedTaskDetail.tokens_used ? `${selectedTaskDetail.tokens_used} tokens` : "0 tokens"}
+                  </span>
+                </div>
+              </div>
+
+              {/* Main Analysis and Snapshot Grid */}
+              <div className="grid grid-cols-1 md:grid-cols-12 gap-5">
+                {/* Hydrological Assessment */}
+                <div className="md:col-span-7 space-y-4">
+                  <div className="p-5 rounded-2xl bg-slate-50 border border-slate-200/70 space-y-3.5">
+                    <div className="flex items-center justify-between">
+                      <span className="text-xs font-bold uppercase tracking-wider text-slate-500">
+                        Đánh Giá Ngập Nước (VLRDR)
+                      </span>
+                      <span className={`px-2.5 py-1 rounded-full text-xs font-black ${
+                        (selectedTaskDetail.depth_level || 0) >= 3
+                          ? "bg-rose-100 text-rose-700 border border-rose-200"
+                          : (selectedTaskDetail.depth_level || 0) >= 1
+                          ? "bg-amber-100 text-amber-700 border border-amber-200"
+                          : "bg-emerald-100 text-emerald-700 border border-emerald-200"
+                      }`}>
+                        Level {selectedTaskDetail.depth_level || 0}
+                      </span>
+                    </div>
+
+                    <div className="flex items-baseline gap-2">
+                      <span className="text-2xl font-black text-slate-900">
+                        {selectedTaskDetail.depth_estimate_cm_max
+                          ? `${selectedTaskDetail.depth_estimate_cm_min} - ${selectedTaskDetail.depth_estimate_cm_max} cm`
+                          : "0 cm (Khô ráo)"}
+                      </span>
+                      {selectedTaskDetail.confidence_score !== null && (
+                        <span className="text-xs text-slate-500 font-medium">
+                          (Độ tin cậy: {Math.round((selectedTaskDetail.confidence_score || 0) * 100)}%)
+                        </span>
+                      )}
+                    </div>
+
+                    {selectedTaskDetail.alert_message && (
+                      <div className="p-3 rounded-xl bg-white border border-slate-200/80 text-xs font-semibold text-slate-800">
+                        <span className="text-slate-400 block text-[10px] uppercase font-bold mb-0.5">Thông báo cảnh báo:</span>
+                        {selectedTaskDetail.alert_message}
+                      </div>
+                    )}
+
+                    {/* Reference objects */}
+                    {selectedTaskDetail.reference_objects?.length > 0 && (
+                      <div>
+                        <span className="text-[10px] font-bold uppercase text-slate-400 block mb-1.5">
+                          Vật thể tham chiếu nhận diện:
+                        </span>
+                        <div className="flex flex-wrap gap-1.5">
+                          {selectedTaskDetail.reference_objects.map((obj: string, i: number) => (
+                            <span key={i} className="px-2 py-0.5 rounded-lg bg-indigo-50 text-indigo-700 text-[11px] font-medium border border-indigo-100">
+                              {obj}
+                            </span>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+
+                    {/* Reasoning */}
+                    {selectedTaskDetail.reasoning && (
+                      <div>
+                        <span className="text-[10px] font-bold uppercase text-slate-400 block mb-1">
+                          Lập luận phân tích của AI:
+                        </span>
+                        <p className="text-xs text-slate-600 leading-relaxed bg-white p-3 rounded-xl border border-slate-200/80">
+                          {selectedTaskDetail.reasoning}
+                        </p>
+                      </div>
+                    )}
+
+                    {selectedTaskDetail.error_message && (
+                      <div className="p-3 rounded-xl bg-rose-50 border border-rose-200 text-xs text-rose-800">
+                        <span className="font-bold block mb-0.5">Lỗi ghi nhận:</span>
+                        {selectedTaskDetail.error_message}
+                      </div>
+                    )}
+                  </div>
+                </div>
+
+                {/* Snapshot Image Preview */}
+                <div className="md:col-span-5 space-y-4">
+                  <div className="p-4 rounded-2xl bg-slate-50 border border-slate-200/70">
+                    <span className="text-[10px] font-bold uppercase text-slate-400 block mb-2">
+                      Ảnh Khung Hình Phân Tích
+                    </span>
+                    {selectedTaskDetail.camera_id ? (
+                      <div className="relative aspect-video rounded-xl overflow-hidden bg-black/80 border border-slate-200 shadow-inner">
+                        <img
+                          src={`${apiUrl}/api/v1/cameras/${selectedTaskDetail.camera_id}/snapshot?t=${cacheBuster}`}
+                          alt="Camera Frame"
+                          className="w-full h-full object-cover"
+                          onError={(e: any) => {
+                            e.target.style.display = "none";
+                          }}
+                        />
+                        <div className="absolute bottom-2 left-2 px-2 py-0.5 rounded bg-black/60 text-white text-[10px] font-mono">
+                          {selectedTaskDetail.camera_id}
+                        </div>
+                      </div>
+                    ) : (
+                      <div className="aspect-video rounded-xl bg-slate-200 flex items-center justify-center text-slate-400 text-xs font-semibold">
+                        Ảnh tải lên Demo
+                      </div>
+                    )}
+
+                    <div className="mt-3 space-y-1.5 text-xs text-slate-600">
+                      <div className="flex justify-between">
+                        <span className="text-slate-400">Góc camera:</span>
+                        <span className="font-bold text-slate-800">{selectedTaskDetail.camera_angle || "elevated"}</span>
+                      </div>
+                      <div className="flex justify-between">
+                        <span className="text-slate-400">Vị trí:</span>
+                        <span className="font-bold text-slate-800 truncate max-w-[180px]">{selectedTaskDetail.location_hint || "TP. Hồ Chí Minh"}</span>
+                      </div>
+                      <div className="flex justify-between">
+                        <span className="text-slate-400">Thời gian tạo:</span>
+                        <span className="font-mono text-[11px] text-slate-700">
+                          {selectedTaskDetail.created_at ? new Date(selectedTaskDetail.created_at).toLocaleString("vi-VN") : "N/A"}
+                        </span>
+                      </div>
+                      {selectedTaskDetail.completed_at && (
+                        <div className="flex justify-between">
+                          <span className="text-slate-400">Hoàn thành:</span>
+                          <span className="font-mono text-[11px] text-slate-700">
+                            {new Date(selectedTaskDetail.completed_at).toLocaleString("vi-VN")}
+                          </span>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              {/* Technical Audit: Raw Response & Prompts */}
+              <div className="space-y-3 pt-2 border-t border-slate-100">
+                <div className="flex items-center justify-between">
+                  <span className="text-xs font-bold uppercase tracking-wider text-slate-700 flex items-center gap-1.5">
+                    <Sliders className="w-3.5 h-3.5 text-indigo-600" />
+                    <span>Dữ Liệu Kỹ Thuật & Raw Response từ AI</span>
+                  </span>
+                  {selectedTaskDetail.raw_response && (
+                    <button
+                      onClick={() => {
+                        navigator.clipboard.writeText(selectedTaskDetail.raw_response);
+                        setCopiedRaw(true);
+                        setTimeout(() => setCopiedRaw(false), 2000);
+                      }}
+                      className="px-2.5 py-1 rounded-lg border border-slate-200 hover:bg-slate-50 text-[11px] font-semibold text-slate-600 flex items-center gap-1 transition"
+                    >
+                      {copiedRaw ? <Check className="w-3 h-3 text-emerald-600" /> : <Copy className="w-3 h-3" />}
+                      <span>{copiedRaw ? "Đã sao chép!" : "Sao chép Raw Response"}</span>
+                    </button>
+                  )}
+                </div>
+
+                {selectedTaskDetail.prompt_preview && (
+                  <div>
+                    <span className="text-[10px] font-bold text-slate-400 block mb-1">Prompt Preview:</span>
+                    <div className="p-3 rounded-xl bg-slate-900 text-slate-200 font-mono text-[11px] overflow-x-auto max-h-32">
+                      {selectedTaskDetail.prompt_preview}
+                    </div>
+                  </div>
+                )}
+
+                {selectedTaskDetail.raw_response && (
+                  <div>
+                    <span className="text-[10px] font-bold text-slate-400 block mb-1">Raw Gemini Model Output:</span>
+                    <pre className="p-3.5 rounded-xl bg-slate-900 text-emerald-400 font-mono text-[11px] overflow-x-auto max-h-56 leading-relaxed whitespace-pre-wrap">
+                      {selectedTaskDetail.raw_response}
+                    </pre>
+                  </div>
+                )}
+              </div>
+            </div>
+
+            {/* Footer */}
+            <div className="p-4 border-t border-slate-100 bg-slate-50/80 flex items-center justify-end">
+              <button
+                onClick={() => setSelectedTaskDetail(null)}
+                className="px-5 py-2 rounded-xl bg-slate-900 hover:bg-slate-800 text-white text-xs font-bold transition shadow-sm"
+              >
+                Đóng Chi Tiết
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
+

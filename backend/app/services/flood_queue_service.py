@@ -1,43 +1,73 @@
-"""Automated Flood Analysis Queue & Background Scheduler.
+"""Automated Flood Analysis Queue & Background Scheduler (AI Queue Monitor).
 
-Runs periodic, automated AI flood analysis over traffic camera feeds and persists
-hydrological insights to PostgreSQL and PostGIS spatial aggregations.
-Crucial behavior: After the last camera analysis completes in a cycle, waits 30 minutes
-before automatically launching the subsequent cycle. Supports manual trigger override
-and dynamic camera enqueueing.
+Central queue orchestrator for ALL AI calls in FloodWheel (Gemini Vision VLRDR).
+Routes scheduled cycles, single-camera analyses, batch scans, and uploaded demo images
+through a single managed queue with priority ordering, concurrency pacing, and persistent
+audit logging in PostgreSQL (ai_queue_tasks).
 """
 
 import asyncio
 from datetime import datetime, timedelta, timezone
 import json
 import logging
-from typing import Any, Dict, List, Optional, Set
+from typing import Any, Dict, List, Optional, Set, Tuple
+import uuid
 
 try:
     import redis.asyncio as aioredis
 except ImportError:
     aioredis = None
 
-from sqlalchemy import select
+from sqlalchemy import delete, desc, func, or_, select
+from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.config import settings
 from app.db.session import AsyncSessionLocal
-from app.models.db_models import Camera
+from app.models.db_models import AIQueueTaskDB, Camera, FloodReadingDB, FloodZone
+from app.models.flood_reading import AnalysisResponse, FloodReading
 from app.services.camera_service_client import CameraServiceClient
 from app.services.flood_analysis_service import FloodAnalysisService
 
 logger = logging.getLogger("floodwheel.queue_service")
 
 
+class QueueItem:
+    """Internal task representation held in the priority queue."""
+
+    def __init__(
+        self,
+        task_id: str,
+        task_type: str,
+        source: str,
+        priority: int,
+        params: Dict[str, Any],
+        camera_id: Optional[str] = None,
+        camera_name: Optional[str] = None,
+        cycle_id: Optional[int] = None,
+    ):
+        self.task_id = task_id
+        self.task_type = task_type  # "cycle_camera", "single_camera", "batch_camera", "image_upload"
+        self.source = source        # "automated_scheduler", "camera_grid", "admin_dashboard", "demo_upload", "api"
+        self.priority = priority    # 1=highest (user on-demand), 5=batch, 10=background cycle
+        self.params = params
+        self.camera_id = camera_id
+        self.camera_name = camera_name
+        self.cycle_id = cycle_id
+        self.created_at = datetime.now(timezone.utc)
+        self.future: Optional[asyncio.Future] = None
+
+
 class FloodAnalysisQueue:
-    """Background asynchronous queue and cyclical scheduler for AI camera flood analysis."""
+    """Background asynchronous queue and cyclical scheduler for AI flood analysis."""
 
     def __init__(self, interval_minutes: Optional[int] = None):
         interval_m = interval_minutes or getattr(settings, "FLOOD_QUEUE_INTERVAL_MINUTES", 30)
         self.interval_seconds: int = int(interval_m * 60)
         self.max_cameras_per_cycle: int = getattr(settings, "FLOOD_QUEUE_MAX_CAMERAS_PER_CYCLE", 15)
 
-        self._queue: asyncio.Queue = asyncio.Queue()
+        # Priority queue: stores tuples (priority, sequence_number, QueueItem)
+        self._queue: asyncio.PriorityQueue = asyncio.PriorityQueue()
+        self._seq_counter: int = 0
         self._enqueued_ids: Set[str] = set()
         self._wake_event: asyncio.Event = asyncio.Event()
 
@@ -49,6 +79,7 @@ class FloodAnalysisQueue:
         self.current_cycle_id: int = 0
         self.current_camera_id: Optional[str] = None
         self.current_camera_name: Optional[str] = None
+        self.current_task_type: Optional[str] = None
 
         self.last_cycle_started_at: Optional[datetime] = None
         self.last_cycle_completed_at: Optional[datetime] = None
@@ -59,6 +90,7 @@ class FloodAnalysisQueue:
             "total": 0,
             "processed": 0,
             "success": 0,
+            "skipped": 0,
             "failed": 0,
             "flooded": 0,
         }
@@ -165,34 +197,458 @@ class FloodAnalysisQueue:
         return self.get_status()
 
     async def trigger_now(self) -> Dict[str, Any]:
-        """Manually forces an immediate analysis cycle, skipping the 30-minute wait."""
+        """Manually forces an immediate analysis cycle across cameras."""
         logger.info("Manual trigger requested for FloodAnalysisQueue.")
-        # Self-healing: If background worker loop is stopped or finished, boot it now
         if not self._running or self._loop_task is None or self._loop_task.done():
             logger.info("Worker loop is not running. Auto-starting FloodAnalysisQueue worker...")
             await self.start()
 
         self._paused = False
+        # Set next_run_at to past so the worker immediately starts the cycle
+        self.next_run_at = datetime.now(timezone.utc) - timedelta(seconds=1)
         self._wake_event.set()
         await self._sync_state_to_redis()
         return self.get_status()
 
+    # ================= SUBMIT TASK (ALL AI CALLS ENTER HERE) =================
+
+    async def submit_task(
+        self,
+        task_type: str,
+        source: str,
+        params: Dict[str, Any],
+        priority: int = 1,
+        camera_id: Optional[str] = None,
+        camera_name: Optional[str] = None,
+        cycle_id: Optional[int] = None,
+        wait_result: bool = False,
+        timeout: float = 60.0,
+    ) -> Any:
+        """Enqueues any AI request into the managed queue and records it into database."""
+        # Ensure worker is alive
+        if not self._running or self._loop_task is None or self._loop_task.done():
+            await self.start()
+
+        task_id = f"task_{uuid.uuid4().hex[:12]}"
+        created_at = datetime.now(timezone.utc)
+
+        cid = str(camera_id).strip() if camera_id else None
+        cname = camera_name or cid
+
+        # Snapshot URL reference
+        snapshot_url = None
+        if cid:
+            snapshot_url = f"/api/v1/cameras/{cid}/snapshot"
+
+        # 1. Persist QUEUED record into PostgreSQL
+        try:
+            async with AsyncSessionLocal() as session:
+                task_db = AIQueueTaskDB(
+                    id=task_id,
+                    task_type=task_type,
+                    source=source,
+                    status="QUEUED",
+                    camera_id=cid,
+                    camera_name=cname,
+                    location_hint=params.get("location_hint"),
+                    camera_angle=params.get("camera_angle", "elevated"),
+                    cycle_id=cycle_id,
+                    created_at=created_at,
+                    snapshot_url=snapshot_url,
+                )
+                session.add(task_db)
+                await session.commit()
+        except Exception as db_err:
+            logger.warning("Could not persist initial task record %s to DB: %s", task_id, db_err)
+
+        # 2. Build QueueItem
+        item = QueueItem(
+            task_id=task_id,
+            task_type=task_type,
+            source=source,
+            priority=priority,
+            params=params,
+            camera_id=cid,
+            camera_name=cname,
+            cycle_id=cycle_id,
+        )
+
+        loop = asyncio.get_running_loop()
+        if wait_result:
+            item.future = loop.create_future()
+
+        # 3. Add to PriorityQueue
+        self._seq_counter += 1
+        await self._queue.put((priority, self._seq_counter, item))
+
+        if cycle_id and cycle_id == self.current_cycle_id:
+            self.cycle_progress["total"] += 1
+
+        # 4. Wake worker
+        self._wake_event.set()
+        await self._sync_state_to_redis()
+
+        logger.info(
+            "Enqueued AI task [%s] type=%s source=%s priority=%d (queue size=%d)",
+            task_id,
+            task_type,
+            source,
+            priority,
+            self._queue.qsize(),
+        )
+
+        if wait_result and item.future:
+            try:
+                return await asyncio.wait_for(item.future, timeout=timeout)
+            except asyncio.TimeoutError:
+                logger.error("AI task [%s] timed out after %.1fs", task_id, timeout)
+                raise TimeoutError(f"AI task {task_id} timed out waiting in queue.")
+
+        return task_id
+
     async def enqueue_cameras(self, camera_ids: List[str]) -> int:
-        """Enqueues specific camera IDs and wakes the worker if waiting."""
+        """Enqueues camera IDs into queue with deduplication and priority 5."""
         enqueued_count = 0
         for cid in camera_ids:
             clean_id = str(cid).strip()
             if clean_id and clean_id not in self._enqueued_ids:
                 self._enqueued_ids.add(clean_id)
-                await self._queue.put({"id": clean_id, "name": clean_id})
+                await self.submit_task(
+                    task_type="batch_camera",
+                    source="admin_dashboard",
+                    params={"force_refresh": True},
+                    priority=5,
+                    camera_id=clean_id,
+                    camera_name=clean_id,
+                    wait_result=False,
+                )
                 enqueued_count += 1
 
-        if enqueued_count > 0:
-            self.cycle_progress["total"] += enqueued_count
-            self._wake_event.set()
-            await self._sync_state_to_redis()
-
         return enqueued_count
+
+    # ================= WORKER CYCLE & EXECUTION LOOP =================
+
+    async def _worker_cycle_loop(self):
+        """Continuous background execution loop.
+
+        Picks tasks from PriorityQueue first; when empty, checks if scheduled 30m cycle
+        is due. After all cycle tasks drain, schedules next cycle strictly in 30 minutes.
+        """
+        logger.info("AI Queue worker started. Monitoring priority tasks and cycle scheduler.")
+        await asyncio.sleep(3)
+
+        while self._running:
+            try:
+                # ----------------- 1. PROCESS PENDING QUEUE TASKS -----------------
+                if not self._queue.empty():
+                    _, _, item = await self._queue.get()
+                    try:
+                        await self._execute_task(item)
+                    finally:
+                        if item.camera_id:
+                            self._enqueued_ids.discard(item.camera_id)
+                        self._queue.task_done()
+                        await self._sync_state_to_redis()
+                    continue
+
+                # ----------------- 2. CHECK SCHEDULED CYCLES -----------------
+                now = datetime.now(timezone.utc)
+                should_run_cycle = False
+
+                if not self._paused:
+                    if self.next_run_at is None:
+                        # Initial cycle on boot
+                        should_run_cycle = True
+                    elif now >= self.next_run_at:
+                        should_run_cycle = True
+
+                if should_run_cycle:
+                    await self._launch_scheduled_cycle()
+                    continue
+
+                # ----------------- 3. IDLE WAIT -----------------
+                self.status = "idle"
+                self.current_camera_id = None
+                self.current_camera_name = None
+                self.current_task_type = None
+                await self._sync_state_to_redis()
+
+                # Sleep until next scheduled run or woken by incoming task
+                sleep_sec = float(self.interval_seconds)
+                if self.next_run_at:
+                    rem = (self.next_run_at - datetime.now(timezone.utc)).total_seconds()
+                    sleep_sec = max(1.0, min(float(self.interval_seconds), rem))
+
+                self._wake_event.clear()
+                try:
+                    await asyncio.wait_for(self._wake_event.wait(), timeout=sleep_sec)
+                except asyncio.TimeoutError:
+                    pass
+
+            except asyncio.CancelledError:
+                logger.info("Flood queue worker loop cancelled.")
+                break
+            except Exception as loop_exc:
+                logger.exception("Unexpected error in flood queue worker loop: %s", loop_exc)
+                self.status = "error"
+                await asyncio.sleep(5)
+                self.status = "idle"
+
+    async def _launch_scheduled_cycle(self):
+        """Starts a new automated 30-minute city-wide camera inspection cycle."""
+        self.status = "running"
+        self.current_cycle_id += 1
+        cycle_start_time = datetime.now(timezone.utc)
+        self.last_cycle_started_at = cycle_start_time
+        self.next_run_at = None
+
+        logger.info("=== Starting AI Flood Analysis Cycle #%d ===", self.current_cycle_id)
+
+        candidates = await self._discover_all_cameras()
+        self.cycle_progress = {
+            "cycle_id": self.current_cycle_id,
+            "total": len(candidates),
+            "processed": 0,
+            "success": 0,
+            "skipped": 0,
+            "failed": 0,
+            "flooded": 0,
+        }
+
+        # Submit all candidates to priority queue (priority=10 background)
+        for c in candidates:
+            cid = c.get("id")
+            cname = c.get("name") or cid
+            if cid and cid not in self._enqueued_ids:
+                self._enqueued_ids.add(cid)
+                # Direct queue put to avoid DB overhead during bulk enqueue
+                self._seq_counter += 1
+                task_id = f"task_{uuid.uuid4().hex[:12]}"
+
+                # DB queued record
+                try:
+                    async with AsyncSessionLocal() as session:
+                        task_db = AIQueueTaskDB(
+                            id=task_id,
+                            task_type="cycle_camera",
+                            source="automated_scheduler",
+                            status="QUEUED",
+                            camera_id=cid,
+                            camera_name=cname,
+                            location_hint=c.get("district"),
+                            camera_angle=c.get("camera_angle", "elevated"),
+                            cycle_id=self.current_cycle_id,
+                            created_at=cycle_start_time,
+                            snapshot_url=f"/api/v1/cameras/{cid}/snapshot",
+                        )
+                        session.add(task_db)
+                        await session.commit()
+                except Exception as db_e:
+                    logger.debug("Failed saving cycle task %s: %s", task_id, db_e)
+
+                item = QueueItem(
+                    task_id=task_id,
+                    task_type="cycle_camera",
+                    source="automated_scheduler",
+                    priority=10,
+                    params={"force_refresh": False},
+                    camera_id=cid,
+                    camera_name=cname,
+                    cycle_id=self.current_cycle_id,
+                )
+                await self._queue.put((10, self._seq_counter, item))
+
+        await self._sync_state_to_redis()
+
+    async def _execute_task(self, item: QueueItem):
+        """Executes a single queue task, tracks timing, updates DB and resolves futures."""
+        started_at = datetime.now(timezone.utc)
+        queue_wait_ms = round((started_at - item.created_at).total_seconds() * 1000, 1)
+
+        self.status = "running"
+        self.current_camera_id = item.camera_id
+        self.current_camera_name = item.camera_name or item.camera_id
+        self.current_task_type = item.task_type
+
+        # Update DB to PROCESSING
+        try:
+            async with AsyncSessionLocal() as session:
+                task_row = await session.get(AIQueueTaskDB, item.task_id)
+                if task_row:
+                    task_row.status = "PROCESSING"
+                    task_row.started_at = started_at
+                    task_row.queue_wait_ms = queue_wait_ms
+                    await session.commit()
+        except Exception as db_err:
+            logger.debug("Could not update task %s to PROCESSING: %s", item.task_id, db_err)
+
+        await self._sync_state_to_redis()
+
+        res: Optional[AnalysisResponse] = None
+        error_msg: Optional[str] = None
+
+        try:
+            # 1. Execute task based on task_type
+            if item.task_type == "image_upload":
+                img_bytes = item.params.get("image_bytes")
+                c_angle = item.params.get("camera_angle", "elevated")
+                loc_hint = item.params.get("location_hint") or item.params.get("filename")
+                res = await self.analysis_service.analyze_uploaded_image(
+                    image_bytes=img_bytes,
+                    camera_angle=c_angle,
+                    location_hint=loc_hint,
+                    camera_id=item.camera_id or "demo-upload",
+                )
+            else:
+                # Camera task (single_camera, cycle_camera, batch_camera)
+                image_b64 = item.params.get("image_base64")
+                force_ref = item.params.get("force_refresh", False)
+                async with AsyncSessionLocal() as session:
+                    res = await self.analysis_service.analyze_single_camera(
+                        session=session,
+                        camera_id=item.camera_id,
+                        image_base64=image_b64,
+                        force_refresh=force_ref,
+                    )
+
+            # Attach task_id to response
+            if res:
+                res.task_id = item.task_id
+
+        except Exception as exc:
+            logger.error("Error executing AI queue task %s: %s", item.task_id, exc)
+            error_msg = str(exc)
+
+        completed_at = datetime.now(timezone.utc)
+        duration_ms = round((completed_at - started_at).total_seconds() * 1000, 1)
+
+        # 2. Determine completion status
+        if error_msg:
+            status_str = "FAILED"
+        elif res and res.model_used == "skipped-default-image":
+            status_str = "SKIPPED"
+        else:
+            status_str = "COMPLETED"
+
+        # 3. Update DB record with all results and audit metrics
+        try:
+            async with AsyncSessionLocal() as session:
+                task_row = await session.get(AIQueueTaskDB, item.task_id)
+                if task_row:
+                    task_row.status = status_str
+                    task_row.completed_at = completed_at
+                    task_row.duration_ms = duration_ms
+                    task_row.error_message = error_msg
+
+                    if res:
+                        task_row.model_used = res.model_used
+                        task_row.tokens_used = res.tokens_used
+                        task_row.inference_time_ms = res.inference_time_ms
+                        task_row.raw_response = getattr(res, "raw_response", None)
+                        task_row.prompt_preview = getattr(res, "prompt_preview", None)
+
+                        if res.reading:
+                            task_row.flood_detected = res.reading.flood_detected
+                            task_row.depth_level = res.reading.depth_level
+                            task_row.depth_estimate_cm_min = res.reading.depth_estimate_cm_min
+                            task_row.depth_estimate_cm_max = res.reading.depth_estimate_cm_max
+                            task_row.confidence_score = res.reading.confidence_score
+                            task_row.alert_message = res.reading.alert_message
+                            task_row.reasoning = res.reading.reasoning
+                            task_row.reference_objects = json.dumps(res.reading.reference_objects_used or [])
+
+                    await session.commit()
+        except Exception as db_up_err:
+            logger.warning("Could not persist completed task %s to DB: %s", item.task_id, db_up_err)
+
+        # 4. Record result to in-memory sliding window
+        recent_entry = {
+            "task_id": item.task_id,
+            "task_type": item.task_type,
+            "source": item.source,
+            "camera_id": item.camera_id,
+            "camera_name": item.camera_name or item.camera_id,
+            "success": status_str != "FAILED",
+            "skipped": status_str == "SKIPPED",
+            "cached": res.model_used == "cache-hit" if res else False,
+            "status": status_str,
+            "depth_level": res.reading.depth_level if (res and res.reading) else 0,
+            "depth_cm_min": res.reading.depth_estimate_cm_min if (res and res.reading) else 0,
+            "depth_cm_max": res.reading.depth_estimate_cm_max if (res and res.reading) else 0,
+            "flood_detected": res.reading.flood_detected if (res and res.reading) else False,
+            "alert_message": res.reading.alert_message if (res and res.reading) else (error_msg or "Thất bại"),
+            "model_used": res.model_used if res else "error",
+            "tokens_used": res.tokens_used if res else 0,
+            "inference_time_ms": res.inference_time_ms if res else 0.0,
+            "queue_wait_ms": queue_wait_ms,
+            "duration_ms": duration_ms,
+            "timestamp": completed_at.isoformat(),
+        }
+        self._record_result(recent_entry)
+
+        # 5. Update cycle metrics if task belongs to current cycle
+        if item.cycle_id and item.cycle_id == self.current_cycle_id:
+            self.cycle_progress["processed"] += 1
+            if status_str == "COMPLETED":
+                self.cycle_progress["success"] += 1
+                if res and res.reading and res.reading.flood_detected:
+                    self.cycle_progress["flooded"] += 1
+            elif status_str == "SKIPPED":
+                self.cycle_progress["skipped"] += 1
+            else:
+                self.cycle_progress["failed"] += 1
+
+            # Check if cycle finished (all items in this cycle processed)
+            if self.cycle_progress["processed"] >= self.cycle_progress["total"]:
+                self._finish_cycle(completed_at)
+
+        # 6. Resolve future for synchronous callers
+        if item.future and not item.future.done():
+            if error_msg:
+                item.future.set_exception(Exception(error_msg))
+            else:
+                item.future.set_result(res)
+
+        # Cooperative pacing between Gemini calls
+        if status_str == "COMPLETED" and res and res.model_used not in ("cache-hit", "skipped-default-image"):
+            await asyncio.sleep(0.5)
+        else:
+            await asyncio.sleep(0.05)
+
+    def _finish_cycle(self, cycle_end_time: datetime):
+        """Finalizes cycle metrics, logs summary, and schedules next cycle in 30 minutes."""
+        cycle_start_time = self.last_cycle_started_at or cycle_end_time
+        self.last_cycle_completed_at = cycle_end_time
+        duration_sec = round((cycle_end_time - cycle_start_time).total_seconds(), 1)
+
+        self.last_cycle_summary = {
+            "cycle_id": self.current_cycle_id,
+            "started_at": cycle_start_time.isoformat(),
+            "completed_at": cycle_end_time.isoformat(),
+            "duration_seconds": duration_sec,
+            "total_cameras": self.cycle_progress["total"],
+            "successful": self.cycle_progress["success"],
+            "skipped": self.cycle_progress["skipped"],
+            "failed": self.cycle_progress["failed"],
+            "flooded_count": self.cycle_progress["flooded"],
+            "max_depth_cm": max([r.get("depth_cm_max", 0) for r in self.recent_results if r.get("cycle_id") == self.current_cycle_id] or [0]),
+        }
+
+        # Next run is scheduled exactly 30 minutes after completion of the cycle!
+        self.next_run_at = cycle_end_time + timedelta(seconds=self.interval_seconds)
+
+        logger.info(
+            "=== Cycle #%d Completed in %.1fs: %d cameras (%d flooded). "
+            "Next cycle scheduled in %d minutes at %s ===",
+            self.current_cycle_id,
+            duration_sec,
+            self.cycle_progress["total"],
+            self.cycle_progress["flooded"],
+            self.interval_seconds // 60,
+            self.next_run_at.isoformat(),
+        )
+
+    # ================= CAMERA DISCOVERY (FAIR ROTATION) =================
 
     async def _discover_all_cameras(self) -> List[Dict[str, Any]]:
         """Discovers candidate cameras with fair rotation based on least-recently-polled order."""
@@ -200,7 +656,6 @@ class FloodAnalysisQueue:
         seen_ids: Set[str] = set()
         db_cams_map: Dict[str, Dict[str, Any]] = {}
 
-        # 1. Query local database for known cameras and their last_polled_at
         try:
             async with AsyncSessionLocal() as session:
                 stmt = select(Camera).where(Camera.status != "OFFLINE")
@@ -222,7 +677,6 @@ class FloodAnalysisQueue:
         except Exception as exc:
             logger.warning("Could not query cameras from local DB: %s", exc)
 
-        # 2. Query dedicated camera-backend microservice
         try:
             remote_cams = await self.camera_service_client.list_cameras(limit=500)
             if remote_cams:
@@ -250,15 +704,11 @@ class FloodAnalysisQueue:
         except Exception as exc:
             logger.warning("Could not discover cameras from camera-backend: %s", exc)
 
-        # 3. Include any remaining DB cameras not returned by remote service
         for cid, cam_dict in db_cams_map.items():
             if cid not in seen_ids:
                 seen_ids.add(cid)
                 cameras.append(cam_dict)
 
-        # Fair rotation sort:
-        # Prioritize cameras that have never been polled (last_polled_at is None),
-        # then sort by oldest last_polled_at timestamp.
         def _sort_key(c: Dict[str, Any]):
             ts = c.get("last_polled_at")
             if ts is None:
@@ -268,260 +718,190 @@ class FloodAnalysisQueue:
             return (1, ts)
 
         cameras.sort(key=_sort_key)
+        return cameras[: self.max_cameras_per_cycle]
 
-        max_cams = self.max_cameras_per_cycle
-        selected = cameras[:max_cams]
-        logger.info(
-            "Selected %d candidate cameras for cycle (out of %d total, prioritized by oldest polled).",
-            len(selected),
-            len(cameras),
-        )
-        return selected
-
-    async def _process_camera(self, camera_id: str, camera_name: Optional[str] = None) -> Dict[str, Any]:
-        """Runs Gemini Vision flood analysis on a single camera with an isolated session."""
-        async with AsyncSessionLocal() as session:
-            try:
-                res = await self.analysis_service.analyze_single_camera(
-                    session=session,
-                    camera_id=camera_id,
-                )
-                if res.model_used == "skipped-default-image":
-                    item = {
-                        "camera_id": camera_id,
-                        "camera_name": camera_name or camera_id,
-                        "success": True,
-                        "skipped": True,
-                        "reason": "Đang chờ ảnh từ cam",
-                        "flood_detected": False,
-                        "depth_level": 0,
-                        "depth_cm_min": 0,
-                        "depth_cm_max": 0,
-                        "alert_message": res.reading.alert_message,
-                        "confidence_score": 0.0,
-                        "inference_time_ms": 0.0,
-                        "timestamp": datetime.now(timezone.utc).isoformat(),
-                    }
-                    self._record_result(item)
-                    return item
-
-                is_cached = (res.model_used == "cache-hit")
-                item = {
-                    "camera_id": camera_id,
-                    "camera_name": camera_name or camera_id,
-                    "success": True,
-                    "skipped": False,
-                    "cached": is_cached,
-                    "model_used": res.model_used,
-                    "flood_detected": res.reading.flood_detected,
-                    "depth_level": res.reading.depth_level,
-                    "depth_cm_min": res.reading.depth_estimate_cm_min,
-                    "depth_cm_max": res.reading.depth_estimate_cm_max,
-                    "alert_message": res.reading.alert_message,
-                    "confidence_score": res.reading.confidence_score,
-                    "inference_time_ms": res.inference_time_ms,
-                    "timestamp": datetime.now(timezone.utc).isoformat(),
-                }
-                self._record_result(item)
-                return item
-            except Exception as exc:
-                logger.error("Error analyzing camera %s in queue: %s", camera_id, exc)
-                item = {
-                    "camera_id": camera_id,
-                    "camera_name": camera_name or camera_id,
-                    "success": False,
-                    "error": str(exc),
-                    "timestamp": datetime.now(timezone.utc).isoformat(),
-                }
-                self._record_result(item)
-                return item
+    # ================= IN-MEMORY SLIDING WINDOW =================
 
     def _record_result(self, item: Dict[str, Any]):
         """Adds recent analysis result to in-memory sliding window."""
         self.recent_results.insert(0, item)
-        if len(self.recent_results) > 30:
-            self.recent_results = self.recent_results[:30]
+        if len(self.recent_results) > 50:
+            self.recent_results = self.recent_results[:50]
 
     def remove_recent_result(self, camera_id: str) -> int:
-        """Removes all recent analysis results matching camera_id."""
+        """Removes recent results matching camera_id."""
         before = len(self.recent_results)
         self.recent_results = [r for r in self.recent_results if r.get("camera_id") != camera_id]
         return before - len(self.recent_results)
 
     def clear_recent_results(self) -> int:
-        """Clears all in-memory recent scan results."""
+        """Clears in-memory recent scan results."""
         count = len(self.recent_results)
         self.recent_results = []
         return count
 
-    async def _worker_cycle_loop(self):
-        """Main scheduled execution loop.
+    # ================= DATABASE HISTORY AUDIT QUERYING =================
 
-        Crucial rule: After the last camera finishes in the cycle, wait 30 minutes
-        before beginning the next cycle.
-        """
-        logger.info(
-            "Background flood analysis loop started. Post-completion delay: %d minutes.",
-            self.interval_seconds // 60,
-        )
+    @staticmethod
+    async def get_history(
+        session: AsyncSession,
+        page: int = 1,
+        page_size: int = 15,
+        status: Optional[str] = None,
+        task_type: Optional[str] = None,
+        search: Optional[str] = None,
+    ) -> Dict[str, Any]:
+        """Queries persistent AI task history with filtering, pagination, and statistical rollups."""
+        filters = []
+        if status and status.upper() != "ALL":
+            if status.upper() == "FLOODED":
+                filters.append(AIQueueTaskDB.flood_detected == True)
+            else:
+                filters.append(AIQueueTaskDB.status == status.upper())
 
-        # Initial wait (10 seconds) on startup to let services and DB migrations settle
-        await asyncio.sleep(10)
+        if task_type and task_type.lower() != "all":
+            filters.append(AIQueueTaskDB.task_type == task_type)
 
-        while self._running:
-            try:
-                if self._paused:
-                    await asyncio.sleep(3)
-                    continue
-
-                # ----------------- 1. START CYCLE -----------------
-                self.status = "running"
-                self.current_cycle_id += 1
-                cycle_start_time = datetime.now(timezone.utc)
-                self.last_cycle_started_at = cycle_start_time
-                self.next_run_at = None
-
-                logger.info("=== Starting AI Flood Analysis Cycle #%d ===", self.current_cycle_id)
-
-                # Discover cameras to analyze
-                candidates = await self._discover_all_cameras()
-                for c in candidates:
-                    cid = c.get("id")
-                    if cid and cid not in self._enqueued_ids:
-                        self._enqueued_ids.add(cid)
-                        await self._queue.put(c)
-
-                self.cycle_progress = {
-                    "cycle_id": self.current_cycle_id,
-                    "total": self._queue.qsize(),
-                    "processed": 0,
-                    "success": 0,
-                    "skipped": 0,
-                    "failed": 0,
-                    "flooded": 0,
-                }
-                await self._sync_state_to_redis()
-
-                # ----------------- 2. DRAIN QUEUE -----------------
-                cycle_results = []
-                while not self._queue.empty() and self._running and not self._paused:
-                    item = await self._queue.get()
-                    cam_id = item.get("id") if isinstance(item, dict) else str(item)
-                    cam_name = item.get("name") if isinstance(item, dict) else cam_id
-
-                    try:
-                        self.current_camera_id = cam_id
-                        self.current_camera_name = cam_name
-                        await self._sync_state_to_redis()
-
-                        # Analyze single camera
-                        res = await self._process_camera(camera_id=cam_id, camera_name=cam_name)
-                        cycle_results.append(res)
-
-                        if res.get("skipped"):
-                            self.cycle_progress["skipped"] += 1
-                        elif res.get("success"):
-                            self.cycle_progress["success"] += 1
-                            if res.get("flood_detected"):
-                                self.cycle_progress["flooded"] += 1
-                        else:
-                            self.cycle_progress["failed"] += 1
-
-                        self.cycle_progress["processed"] += 1
-                        await self._sync_state_to_redis()
-
-                        # Optimized cooperative pacing:
-                        # GeminiClient's internal lock handles strict safe RPM spacing between inferences.
-                        # Cooperative brief pause keeps event loop responsive without adding artificial latency.
-                        if res.get("skipped") or res.get("cached"):
-                            await asyncio.sleep(0.05)
-                        else:
-                            await asyncio.sleep(0.5)
-
-                    except Exception as cam_exc:
-                        logger.error("Error processing camera %s: %s", cam_id, cam_exc)
-                        self.cycle_progress["failed"] += 1
-                        self.cycle_progress["processed"] += 1
-                    finally:
-                        self._enqueued_ids.discard(cam_id)
-                        self._queue.task_done()
-                        await self._sync_state_to_redis()
-
-                # ----------------- 3. CYCLE FINISHED -----------------
-                # Sau lần chạy cuối cùng: cập nhật thời gian hoàn thành
-                cycle_end_time = datetime.now(timezone.utc)
-                self.last_cycle_completed_at = cycle_end_time
-                self.current_camera_id = None
-                self.current_camera_name = None
-                self.status = "idle"
-
-                successful_count = self.cycle_progress["success"]
-                skipped_count = self.cycle_progress["skipped"]
-                flooded_count = sum(1 for r in cycle_results if r.get("flood_detected"))
-                max_depth = max([r.get("depth_cm_max", 0) for r in cycle_results if r.get("success") and not r.get("skipped")] or [0])
-                duration_sec = round((cycle_end_time - cycle_start_time).total_seconds(), 1)
-
-                self.last_cycle_summary = {
-                    "cycle_id": self.current_cycle_id,
-                    "started_at": cycle_start_time.isoformat(),
-                    "completed_at": cycle_end_time.isoformat(),
-                    "duration_seconds": duration_sec,
-                    "total_cameras": len(cycle_results),
-                    "successful": successful_count,
-                    "skipped": skipped_count,
-                    "failed": self.cycle_progress["failed"],
-                    "flooded_count": flooded_count,
-                    "max_depth_cm": max_depth,
-                }
-
-                # Next run is scheduled exactly 30 minutes after the completion of the last run!
-                self.next_run_at = cycle_end_time + timedelta(seconds=self.interval_seconds)
-
-                logger.info(
-                    "=== Cycle #%d Completed in %.1fs: %d cameras (%d flooded, max %dcm). "
-                    "Next cycle scheduled in %d minutes at %s ===",
-                    self.current_cycle_id,
-                    duration_sec,
-                    len(cycle_results),
-                    flooded_count,
-                    max_depth,
-                    self.interval_seconds // 60,
-                    self.next_run_at.isoformat(),
+        if search and search.strip():
+            s = f"%{search.strip()}%"
+            filters.append(
+                or_(
+                    AIQueueTaskDB.camera_name.ilike(s),
+                    AIQueueTaskDB.camera_id.ilike(s),
+                    AIQueueTaskDB.id.ilike(s),
+                    AIQueueTaskDB.alert_message.ilike(s),
                 )
-                await self._sync_state_to_redis()
+            )
 
-                # ----------------- 4. SLEEP 30 MINUTES -----------------
-                # Chờ 30 phút sau lần chạy cuối cùng, có thể thức dậy sớm nếu người dùng ấn chạy ngay
-                self._wake_event.clear()
-                try:
-                    await asyncio.wait_for(self._wake_event.wait(), timeout=float(self.interval_seconds))
-                    logger.info("Cycle timer woken up early by manual trigger!")
-                except asyncio.TimeoutError:
-                    logger.info("30 minutes elapsed since last run. Starting next scheduled cycle.")
+        # Total matching
+        count_stmt = select(func.count(AIQueueTaskDB.id))
+        if filters:
+            count_stmt = count_stmt.where(*filters)
+        total_count = (await session.execute(count_stmt)).scalar() or 0
 
-            except asyncio.CancelledError:
-                logger.info("Flood queue worker loop cancelled.")
-                break
-            except Exception as loop_exc:
-                logger.exception("Unexpected error in flood queue worker loop: %s", loop_exc)
-                self.status = "error"
-                # Flush pending queue and clear lock sets to recover cleanly
-                while not self._queue.empty():
-                    try:
-                        self._queue.get_nowait()
-                        self._queue.task_done()
-                    except Exception:
-                        break
-                self._enqueued_ids.clear()
-                self.current_camera_id = None
-                self.current_camera_name = None
-                await self._sync_state_to_redis()
-                await asyncio.sleep(10)
-                # Self-healing recovery back to idle
-                self.status = "idle"
+        # Items paginated
+        stmt = (
+            select(AIQueueTaskDB)
+            .order_by(desc(AIQueueTaskDB.created_at))
+            .offset((page - 1) * page_size)
+            .limit(page_size)
+        )
+        if filters:
+            stmt = stmt.where(*filters)
+        res = await session.execute(stmt)
+        rows = list(res.scalars().all())
+
+        # Global statistics
+        total_stmt = select(func.count(AIQueueTaskDB.id))
+        completed_stmt = select(func.count(AIQueueTaskDB.id)).where(AIQueueTaskDB.status == "COMPLETED")
+        flooded_stmt = select(func.count(AIQueueTaskDB.id)).where(AIQueueTaskDB.flood_detected == True)
+        failed_stmt = select(func.count(AIQueueTaskDB.id)).where(AIQueueTaskDB.status == "FAILED")
+        skipped_stmt = select(func.count(AIQueueTaskDB.id)).where(AIQueueTaskDB.status == "SKIPPED")
+        avg_inf_stmt = select(func.avg(AIQueueTaskDB.inference_time_ms)).where(AIQueueTaskDB.status == "COMPLETED")
+
+        total_all = (await session.execute(total_stmt)).scalar() or 0
+        total_comp = (await session.execute(completed_stmt)).scalar() or 0
+        total_flood = (await session.execute(flooded_stmt)).scalar() or 0
+        total_fail = (await session.execute(failed_stmt)).scalar() or 0
+        total_skip = (await session.execute(skipped_stmt)).scalar() or 0
+        avg_inf = (await session.execute(avg_inf_stmt)).scalar() or 0.0
+
+        items = []
+        for r in rows:
+            items.append({
+                "id": r.id,
+                "task_type": r.task_type,
+                "source": r.source,
+                "status": r.status,
+                "camera_id": r.camera_id,
+                "camera_name": r.camera_name,
+                "cycle_id": r.cycle_id,
+                "created_at": r.created_at.isoformat() if r.created_at else None,
+                "started_at": r.started_at.isoformat() if r.started_at else None,
+                "completed_at": r.completed_at.isoformat() if r.completed_at else None,
+                "duration_ms": r.duration_ms,
+                "queue_wait_ms": r.queue_wait_ms,
+                "inference_time_ms": r.inference_time_ms,
+                "model_used": r.model_used,
+                "tokens_used": r.tokens_used,
+                "flood_detected": r.flood_detected,
+                "depth_level": r.depth_level,
+                "depth_estimate_cm_min": r.depth_estimate_cm_min,
+                "depth_estimate_cm_max": r.depth_estimate_cm_max,
+                "confidence_score": r.confidence_score,
+                "alert_message": r.alert_message,
+                "error_message": r.error_message,
+                "snapshot_url": r.snapshot_url,
+            })
+
+        total_pages = max(1, (total_count + page_size - 1) // page_size)
+
+        return {
+            "items": items,
+            "total": total_count,
+            "page": page,
+            "page_size": page_size,
+            "total_pages": total_pages,
+            "stats": {
+                "total_calls": total_all,
+                "completed_count": total_comp,
+                "flooded_count": total_flood,
+                "failed_count": total_fail,
+                "skipped_count": total_skip,
+                "avg_inference_ms": round(float(avg_inf), 1),
+            },
+        }
+
+    @staticmethod
+    async def get_history_detail(session: AsyncSession, task_id: str) -> Optional[Dict[str, Any]]:
+        """Retrieves complete audit details for a specific AI queue task."""
+        row = await session.get(AIQueueTaskDB, task_id)
+        if not row:
+            return None
+
+        return {
+            "id": row.id,
+            "task_type": row.task_type,
+            "source": row.source,
+            "status": row.status,
+            "camera_id": row.camera_id,
+            "camera_name": row.camera_name,
+            "location_hint": row.location_hint,
+            "camera_angle": row.camera_angle,
+            "cycle_id": row.cycle_id,
+            "created_at": row.created_at.isoformat() if row.created_at else None,
+            "started_at": row.started_at.isoformat() if row.started_at else None,
+            "completed_at": row.completed_at.isoformat() if row.completed_at else None,
+            "duration_ms": row.duration_ms,
+            "queue_wait_ms": row.queue_wait_ms,
+            "inference_time_ms": row.inference_time_ms,
+            "model_used": row.model_used,
+            "tokens_used": row.tokens_used,
+            "flood_detected": row.flood_detected,
+            "depth_level": row.depth_level,
+            "depth_estimate_cm_min": row.depth_estimate_cm_min,
+            "depth_estimate_cm_max": row.depth_estimate_cm_max,
+            "confidence_score": row.confidence_score,
+            "reference_objects": row.get_reference_objects(),
+            "reasoning": row.reasoning,
+            "alert_message": row.alert_message,
+            "error_message": row.error_message,
+            "prompt_preview": row.prompt_preview,
+            "raw_response": row.raw_response,
+            "snapshot_url": row.snapshot_url,
+        }
+
+    @staticmethod
+    async def clear_history(session: AsyncSession) -> int:
+        """Deletes all persistent AI queue audit history from database."""
+        res = await session.execute(delete(AIQueueTaskDB))
+        await session.commit()
+        return res.rowcount or 0
+
+    # ================= REAL-TIME QUEUE STATUS SNAPSHOT =================
 
     def get_status(self) -> Dict[str, Any]:
-        """Provides snapshot of the queue status, countdown, and progress."""
+        """Provides snapshot of queue status, countdown, and progress."""
         remaining_sec = 0
         if self.next_run_at and self.status == "idle":
             rem = (self.next_run_at - datetime.now(timezone.utc)).total_seconds()
@@ -537,6 +917,7 @@ class FloodAnalysisQueue:
             "max_cameras_per_cycle": self.max_cameras_per_cycle,
             "current_camera_id": self.current_camera_id,
             "current_camera_name": self.current_camera_name,
+            "current_task_type": self.current_task_type,
             "queue_length": self._queue.qsize(),
             "current_cycle_id": self.current_cycle_id,
             "cycle_progress": self.cycle_progress,
@@ -545,7 +926,7 @@ class FloodAnalysisQueue:
             "next_run_at": self.next_run_at.isoformat() if self.next_run_at else None,
             "next_run_in_seconds": remaining_sec,
             "last_cycle_summary": self.last_cycle_summary,
-            "recent_results": self.recent_results[:15],
+            "recent_results": self.recent_results[:20],
         }
 
 

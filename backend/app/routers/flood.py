@@ -65,19 +65,107 @@ async def resume_queue() -> Dict[str, Any]:
     return {"success": True, "message": "Queue resumed", "status": status_data}
 
 
+@router.get("/queue/history")
+async def get_queue_history(
+    page: int = Query(1, ge=1),
+    page_size: int = Query(15, ge=1, le=100),
+    status: Optional[str] = Query(None),
+    task_type: Optional[str] = Query(None),
+    search: Optional[str] = Query(None),
+    db: AsyncSession = Depends(get_db),
+) -> Dict[str, Any]:
+    """Retrieves paginated AI queue execution history from PostgreSQL."""
+    from app.services.flood_queue_service import flood_queue_service
+    return await flood_queue_service.get_history(
+        session=db,
+        page=page,
+        page_size=page_size,
+        status=status,
+        task_type=task_type,
+        search=search,
+    )
+
+
+@router.get("/queue/history/{task_id}")
+async def get_queue_history_detail(
+    task_id: str,
+    db: AsyncSession = Depends(get_db),
+) -> Dict[str, Any]:
+    """Retrieves full audit log details for a specific AI queue task."""
+    from app.services.flood_queue_service import flood_queue_service
+    detail = await flood_queue_service.get_history_detail(session=db, task_id=task_id)
+    if not detail:
+        raise HTTPException(status_code=404, detail=f"Không tìm thấy tác vụ AI #{task_id}.")
+    return {"success": True, "task": detail}
+
+
 @router.post("/analyze-batch")
 async def analyze_batch_cameras(
     req: BatchAnalyzeRequest = BatchAnalyzeRequest(),
     db: AsyncSession = Depends(get_db),
 ):
-    """Executes AI flood depth analysis across a batch of cameras with concurrency control."""
-    result = await flood_analysis_service.analyze_batch(
-        session=db,
-        camera_ids=req.camera_ids,
-        district=req.district,
-        limit=req.limit,
-    )
-    return {"success": True, "result": result}
+    """Executes AI flood depth analysis across a batch of cameras via the central AI Queue."""
+    from app.services.flood_queue_service import flood_queue_service
+    targets = []
+    if req.camera_ids:
+        targets = req.camera_ids[:req.limit]
+    else:
+        remote_cams = await flood_queue_service.camera_service_client.list_cameras(
+            district=req.district,
+            limit=req.limit * 2,
+        )
+        if remote_cams:
+            targets = [c["id"] for c in remote_cams[:req.limit]]
+        else:
+            stmt = select(Camera).where(Camera.status != "OFFLINE").limit(req.limit)
+            res = await db.execute(stmt)
+            targets = [c.id for c in res.scalars().all()]
+
+    results = []
+    for cid in targets:
+        try:
+            res = await flood_queue_service.submit_task(
+                task_type="batch_camera",
+                source="batch_analyze",
+                params={"force_refresh": True},
+                camera_id=cid,
+                priority=5,
+                wait_result=True,
+                timeout=60.0,
+            )
+            is_skipped = (res.model_used == "skipped-default-image")
+            results.append({
+                "camera_id": cid,
+                "success": True,
+                "skipped": is_skipped,
+                "depth_level": res.reading.depth_level,
+                "depth_cm_min": res.reading.depth_estimate_cm_min,
+                "depth_cm_max": res.reading.depth_estimate_cm_max,
+                "flood_detected": res.reading.flood_detected,
+                "alert_message": res.reading.alert_message,
+                "model_used": res.model_used,
+            })
+        except Exception as exc:
+            results.append({
+                "camera_id": cid,
+                "success": False,
+                "error": str(exc),
+            })
+
+    successful = [r for r in results if r.get("success")]
+    flooded_count = sum(1 for r in successful if r.get("flood_detected"))
+    max_depth = max([r.get("depth_cm_max", 0) for r in successful] or [0])
+
+    return {
+        "success": True,
+        "result": {
+            "total_analyzed": len(successful),
+            "flooded_count": flooded_count,
+            "max_depth_cm": max_depth,
+            "results": results,
+        },
+    }
+
 
 
 @router.get("/summary")

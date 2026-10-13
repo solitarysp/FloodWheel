@@ -84,7 +84,10 @@ class FloodAnalysisService:
                     inference_time_ms=0.0,
                     model_used="cache-hit",
                     tokens_used=0,
+                    raw_response="CACHE_HIT",
+                    prompt_preview=f"Served from cache (age {round(age_sec, 1)}s)",
                 )
+
 
         # 1. Resolve camera details
         cam = await CameraRegistry.get_by_id(session, camera_id)
@@ -180,6 +183,8 @@ class FloodAnalysisService:
                 inference_time_ms=0.0,
                 model_used="skipped-default-image",
                 tokens_used=0,
+                raw_response="SKIPPED_DEFAULT_MOCK_IMAGE",
+                prompt_preview="Skipped because frame is default placeholder",
             )
 
         # 3. Execute Gemini Vision AI inference
@@ -235,7 +240,37 @@ class FloodAnalysisService:
             inference_time_ms=round(elapsed * 1000, 1),
             model_used=model_used,
             tokens_used=tokens,
+            raw_response=raw_text,
+            prompt_preview=f"Gemini VLRDR prompt (camera={cam.name}, angle={cam.camera_angle or 'elevated'})",
         )
+
+    async def analyze_uploaded_image(
+        self,
+        image_bytes: bytes,
+        camera_angle: str = "elevated",
+        location_hint: Optional[str] = None,
+        camera_id: str = "demo-upload",
+    ) -> AnalysisResponse:
+        """Analyzes an uploaded image using Gemini Vision AI."""
+        raw_text, model_used, elapsed, tokens = await self.gemini_client.analyze_image_bytes(
+            image_bytes=image_bytes,
+            camera_angle=camera_angle,
+            location_hint=location_hint,
+        )
+        reading = FloodReadingParser.parse(
+            raw_text=raw_text,
+            camera_id=camera_id,
+        )
+        return AnalysisResponse(
+            success=True,
+            reading=reading,
+            inference_time_ms=round(elapsed * 1000, 1),
+            model_used=model_used,
+            tokens_used=tokens,
+            raw_response=raw_text,
+            prompt_preview=f"Image upload analysis (angle={camera_angle}, hint={location_hint or 'none'})",
+        )
+
 
     async def analyze_batch(
         self,
