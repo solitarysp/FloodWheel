@@ -174,13 +174,13 @@ class GeminiClient:
         if not self._clients_pool:
             return await self._mock_analysis(image_bytes)
 
-        # Candidate models with automatic fallbacks
+        # Candidate models with automatic fallbacks prioritizing ultra-low latency Gemini 3 Flash-Lite models
         candidate_models = [
             self.primary_model,
-            "gemini-2.5-flash",
-            "gemini-2.0-flash",
-            "gemini-1.5-flash",
+            "gemini-3.5-flash-lite",
+            "gemini-3.1-flash-lite",
             "gemini-3.8-flash",
+            "gemini-3.7-flash",
             self.fallback_model,
         ]
         models_to_try = []
@@ -294,15 +294,24 @@ class GeminiClient:
             # google-genai 1.0+
             from google.genai import types
 
+            config_kwargs: Dict[str, Any] = {
+                "system_instruction": system_instruction,
+                "temperature": 0.1,
+                "response_mime_type": "application/json",
+            }
+
+            # Disable thinking budget for zero reasoning overhead (< 1s ultra-fast response)
+            if hasattr(types, "ThinkingConfig"):
+                try:
+                    config_kwargs["thinking_config"] = types.ThinkingConfig(thinking_budget=0)
+                except Exception:
+                    pass
+
             response = await asyncio.to_thread(
                 client.models.generate_content,
                 model=model,
                 contents=[pil_image, user_prompt],
-                config=types.GenerateContentConfig(
-                    system_instruction=system_instruction,
-                    temperature=0.1,
-                    response_mime_type="application/json",
-                ),
+                config=types.GenerateContentConfig(**config_kwargs),
             )
             tokens = getattr(response.usage_metadata, "total_token_count", None) if hasattr(response, "usage_metadata") else None
             return response.text, tokens

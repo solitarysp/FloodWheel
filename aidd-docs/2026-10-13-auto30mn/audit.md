@@ -176,3 +176,20 @@
   - Added formal unit test cases in `backend/tests/test_flood_queue_service.py`.
 - **Phase Status**: 🟢 CONSTRUCTION COMPLETED — Ready for Production Deployment.
 
+---
+
+### [2026-10-13T20:20:00+07:00] EXTENSION — AI RESULTS DELETION FEATURE COMPLETED
+
+- **User Request**: "thêm tính năng xoá kết quả của AI"
+- **Backend Implementation**:
+  - `backend/app/services/flood_queue_service.py`: Added `remove_recent_result(camera_id)` and `clear_recent_results()`.
+  - `backend/app/routers/admin.py`:
+    - `DELETE /api/v1/admin/readings`: Clears all `FloodReadingDB` records, resets non-overridden `FloodZone` to level 0 (0cm), and clears in-memory queue results.
+    - `DELETE /api/v1/admin/cameras/{camera_id}/readings`: Deletes all AI readings for a specific camera, re-aggregates the associated flood zone, and purges the camera from queue sliding window.
+    - `DELETE /api/v1/admin/readings/{reading_id}`: Deletes a specific reading by ID and updates zone status.
+- **Frontend Implementation**:
+  - `frontend/pages/admin.tsx`:
+    - Tab **AI Queue**: Added "Xóa Tất Cả Kết Quả AI" button with safety confirmation in the recent results card header; added action column with trash button to delete individual camera scan results.
+    - Tab **Cameras**: Added `RotateCcw` "Xóa kết quả AI" button on both Table View and Grid Card View when a camera has active AI readings.
+- **Verification**: Verified AST on `admin.py`, `flood_queue_service.py`, and bracket balance on `admin.tsx`. All passed 100%.
+

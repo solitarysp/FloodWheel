@@ -34,6 +34,7 @@ import {
   X,
   Sparkles,
   Flame,
+  RotateCcw,
 } from "lucide-react";
 
 export default function AdminPage() {
@@ -262,6 +263,54 @@ export default function AdminPage() {
         await fetchDashboardData();
       } else {
         throw new Error("Không thể xóa camera.");
+      }
+    } catch (err: any) {
+      showToast("error", err.message);
+    } finally {
+      setActionLoading(null);
+    }
+  };
+
+  const handleDeleteCameraReading = async (cameraId: string, cameraName?: string) => {
+    if (!confirm(`Bạn có chắc chắn muốn xóa kết quả phân tích AI của camera "${cameraName || cameraId}"?`)) return;
+
+    setActionLoading(`del-reading-${cameraId}`);
+    try {
+      const resp = await adminFetch(`${apiUrl}/api/v1/admin/cameras/${cameraId}/readings`, {
+        method: "DELETE",
+      });
+      if (resp.ok) {
+        showToast("success", `Đã xóa kết quả phân tích AI của camera ${cameraName || cameraId}.`);
+        await fetchDashboardData();
+      } else {
+        throw new Error("Không thể xóa kết quả phân tích.");
+      }
+    } catch (err: any) {
+      showToast("error", err.message);
+    } finally {
+      setActionLoading(null);
+    }
+  };
+
+  const handleClearAllReadings = async () => {
+    if (
+      !confirm(
+        "CẢNH BÁO: Bạn có chắc chắn muốn xóa TOÀN BỘ kết quả phân tích AI và đặt lại các khu vực về trạng thái bình thường (Level 0)?"
+      )
+    )
+      return;
+
+    setActionLoading("clear-readings");
+    try {
+      const resp = await adminFetch(`${apiUrl}/api/v1/admin/readings`, {
+        method: "DELETE",
+      });
+      if (resp.ok) {
+        const data = await resp.json();
+        showToast("success", data.message || "Đã xóa toàn bộ kết quả phân tích AI thành công!");
+        await fetchDashboardData();
+      } else {
+        throw new Error("Không thể xóa toàn bộ kết quả phân tích.");
       }
     } catch (err: any) {
       showToast("error", err.message);
@@ -943,7 +992,20 @@ export default function AdminPage() {
 
                 {/* Recent scan results */}
                 <div className="bg-white rounded-3xl p-6 border border-slate-200/80 shadow-sm">
-                  <h3 className="text-base font-bold text-slate-900 mb-4">Kết Quả Phân Tích Gần Nhất</h3>
+                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-4">
+                    <h3 className="text-base font-bold text-slate-900">Kết Quả Phân Tích Gần Nhất</h3>
+                    {overview?.queue?.recent_results?.length > 0 && (
+                      <button
+                        onClick={handleClearAllReadings}
+                        disabled={actionLoading === "clear-readings"}
+                        className="px-3 py-1.5 rounded-xl border border-rose-200 text-rose-600 hover:bg-rose-50 transition text-xs font-bold flex items-center gap-1.5 shadow-xs self-start sm:self-auto"
+                        title="Xóa toàn bộ kết quả quét AI trong database và làm sạch hàng đợi"
+                      >
+                        <Trash2 className="w-3.5 h-3.5" />
+                        <span>{actionLoading === "clear-readings" ? "Đang xóa..." : "Xóa Tất Cả Kết Quả AI"}</span>
+                      </button>
+                    )}
+                  </div>
                   {overview?.queue?.recent_results?.length > 0 ? (
                     <div className="overflow-x-auto">
                       <table className="w-full text-left text-xs">
@@ -954,6 +1016,7 @@ export default function AdminPage() {
                             <th className="pb-3">Độ Sâu (cm)</th>
                             <th className="pb-3">Trạng Thái</th>
                             <th className="pb-3">Thời Gian</th>
+                            <th className="pb-3 text-right">Thao Tác</th>
                           </tr>
                         </thead>
                         <tbody className="divide-y divide-slate-100 font-medium">
@@ -993,6 +1056,16 @@ export default function AdminPage() {
                               </td>
                               <td className="py-2.5 text-slate-400">
                                 {res.timestamp ? new Date(res.timestamp).toLocaleTimeString("vi-VN") : "Vừa xong"}
+                              </td>
+                              <td className="py-2.5 text-right">
+                                <button
+                                  onClick={() => handleDeleteCameraReading(res.camera_id, res.camera_name)}
+                                  disabled={actionLoading === `del-reading-${res.camera_id}`}
+                                  className="p-1.5 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition"
+                                  title={`Xóa kết quả phân tích của camera ${res.camera_name || res.camera_id}`}
+                                >
+                                  <Trash2 className="w-3.5 h-3.5" />
+                                </button>
                               </td>
                             </tr>
                           ))}
@@ -1317,6 +1390,17 @@ export default function AdminPage() {
                                   </button>
                                 )}
 
+                                {cam.latest_reading && (
+                                  <button
+                                    onClick={() => handleDeleteCameraReading(cam.id, cam.name)}
+                                    disabled={actionLoading === `del-reading-${cam.id}`}
+                                    title="Xóa kết quả phân tích AI của camera này"
+                                    className="p-1 text-slate-400 hover:text-amber-600 hover:bg-amber-50 rounded-lg transition"
+                                  >
+                                    <RotateCcw className="w-3.5 h-3.5" />
+                                  </button>
+                                )}
+
                                 <button
                                   onClick={() => handleDeleteCamera(cam.id, cam.name)}
                                   title="Xóa camera"
@@ -1488,13 +1572,26 @@ export default function AdminPage() {
                               )}
                             </div>
 
-                            <button
-                              onClick={() => handleDeleteCamera(cam.id, cam.name)}
-                              title="Xóa camera"
-                              className="p-1.5 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition"
-                            >
-                              <Trash2 className="w-3.5 h-3.5" />
-                            </button>
+                            <div className="flex items-center gap-1">
+                              {cam.latest_reading && (
+                                <button
+                                  onClick={() => handleDeleteCameraReading(cam.id, cam.name)}
+                                  disabled={actionLoading === `del-reading-${cam.id}`}
+                                  title="Xóa kết quả phân tích AI của camera này"
+                                  className="p-1.5 text-slate-400 hover:text-amber-600 hover:bg-amber-50 rounded-lg transition"
+                                >
+                                  <RotateCcw className="w-3.5 h-3.5" />
+                                </button>
+                              )}
+
+                              <button
+                                onClick={() => handleDeleteCamera(cam.id, cam.name)}
+                                title="Xóa camera"
+                                className="p-1.5 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition"
+                              >
+                                <Trash2 className="w-3.5 h-3.5" />
+                              </button>
+                            </div>
                           </div>
                         </div>
                       </div>

@@ -342,6 +342,18 @@ class FloodAnalysisQueue:
         if len(self.recent_results) > 30:
             self.recent_results = self.recent_results[:30]
 
+    def remove_recent_result(self, camera_id: str) -> int:
+        """Removes all recent analysis results matching camera_id."""
+        before = len(self.recent_results)
+        self.recent_results = [r for r in self.recent_results if r.get("camera_id") != camera_id]
+        return before - len(self.recent_results)
+
+    def clear_recent_results(self) -> int:
+        """Clears all in-memory recent scan results."""
+        count = len(self.recent_results)
+        self.recent_results = []
+        return count
+
     async def _worker_cycle_loop(self):
         """Main scheduled execution loop.
 
