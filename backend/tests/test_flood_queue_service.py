@@ -176,3 +176,54 @@ async def test_flood_queue_fair_rotation_sort():
     # Order must be: cam-never (never polled) -> cam-old (polled 2h ago) -> cam-medium (1h ago) -> cam-new (10m ago)
     assert [c["id"] for c in cams] == ["cam-never", "cam-old", "cam-medium", "cam-new"]
 
+
+@pytest.mark.asyncio
+async def test_flood_queue_submit_task_priority_order():
+    """Verifies that high priority on-demand tasks (priority 1) pop before cycle tasks (priority 10)."""
+    queue = FloodAnalysisQueue()
+    from unittest.mock import patch, AsyncMock
+
+    with patch("app.services.flood_queue_service.AsyncSessionLocal"):
+        t1 = await queue.submit_task(
+            task_type="cycle_camera",
+            source="automated_scheduler",
+            params={},
+            camera_id="cam-cycle-01",
+            priority=10,
+            wait_result=False,
+        )
+        t2 = await queue.submit_task(
+            task_type="single_camera",
+            source="camera_grid",
+            params={},
+            camera_id="cam-urgent-01",
+            priority=1,
+            wait_result=False,
+        )
+
+        assert queue._queue.qsize() == 2
+        # Priority 1 must be popped first
+        prio_first, _, item_first = await queue._queue.get()
+        assert prio_first == 1
+        assert item_first.camera_id == "cam-urgent-01"
+
+        # Priority 10 popped second
+        prio_second, _, item_second = await queue._queue.get()
+        assert prio_second == 10
+        assert item_second.camera_id == "cam-cycle-01"
+
+
+@pytest.mark.asyncio
+async def test_flood_queue_auto_cycle_disabled():
+    """Verifies that auto_cycle_enabled=False prevents automatic cycle scheduling."""
+    queue = FloodAnalysisQueue()
+    queue.worker.auto_cycle_enabled = False
+    assert queue.get_status()["auto_cycle_enabled"] is False
+
+    # Simulate finish_cycle when auto_cycle is disabled
+    now = datetime.now(timezone.utc)
+    queue.worker.finish_cycle(now)
+    assert queue.worker.next_run_at is None
+    assert queue.get_status()["next_run_in_seconds"] == 0
+
+

@@ -1,0 +1,76 @@
+export interface QueueHistoryStats {
+  total_calls: number;
+  completed_count: number;
+  flooded_count: number;
+  failed_count: number;
+  skipped_count: number;
+  avg_inference_ms: number;
+}
+
+export interface QueueHistoryItem {
+  id: number;
+  task_type: string;
+  cycle_id?: number;
+  camera_id?: string;
+  camera_name?: string;
+  status: string;
+  depth_level?: number;
+  depth_estimate_cm_max?: number;
+  depth_estimate_cm_min?: number;
+  model_used?: string;
+  inference_time_ms?: number;
+  tokens_used?: number;
+  queue_wait_ms?: number;
+  duration_ms?: number;
+  created_at?: string;
+  completed_at?: string;
+  confidence_score?: number;
+  alert_message?: string;
+  reference_objects?: string[];
+  reasoning?: string;
+  error_message?: string;
+  camera_angle?: string;
+  location_hint?: string;
+  raw_response?: string;
+  prompt_preview?: string;
+}
+
+export interface AdminOverview {
+  cameras?: {
+    total: number;
+    online: number;
+    offline: number;
+  };
+  queue?: {
+    status: string;
+    next_run_in_seconds?: number;
+    interval_minutes?: number;
+    max_cameras_per_cycle?: number;
+  };
+  zones?: {
+    total: number;
+    overridden: number;
+  };
+  alerts?: {
+    active_count: number;
+  };
+}
+
+export interface AdminZone {
+  id: string;
+  name: string;
+  district: string;
+  current_depth_level: number;
+  current_depth_cm_min: number;
+  current_depth_cm_max: number;
+  is_overridden: boolean;
+}
+
+export interface AdminAlert {
+  id: number;
+  zone_id: string;
+  level: number;
+  message: string;
+  is_active: boolean;
+  created_at?: string;
+}

@@ -61,7 +61,7 @@ export default function DashboardPage() {
     if (geoJson && geoJson.features.length > 0) {
       const valid = geoJson.features.some((f) => (f.properties.zone_id || f.id) === selectedZoneId);
       if (!valid || selectedZoneId === "zone-nguyen-huu-canh") {
-        const firstZone = geoJson.features.find((f) => f.properties.type === "zone") || geoJson.features[0];
+        const firstZone = geoJson.features.find((f) => (f.properties as any).type === "zone") || geoJson.features[0];
         if (firstZone) {
           setSelectedZoneId(firstZone.properties.zone_id || firstZone.id);
         }

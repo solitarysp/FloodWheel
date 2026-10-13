@@ -1,83 +1,15 @@
-import math
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List
 from fastapi import APIRouter, Depends, HTTPException, Query
-from pydantic import BaseModel, Field
 from sqlalchemy import desc, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.db.session import get_db
-from app.models.db_models import Camera, FloodReadingDB, FloodZone
+from app.models.db_models import FloodReadingDB, FloodZone
 from app.models.zone_status import ZoneStatus
-from app.services.flood_analysis_service import FloodAnalysisService
 from app.services.heatmap_builder import HeatmapBuilder
-from app.services.zone_aggregator import ZoneAggregator
+from app.utils.geo import haversine_distance
 
-router = APIRouter(prefix="/flood", tags=["Flood"])
-flood_analysis_service = FloodAnalysisService()
-
-
-class BatchAnalyzeRequest(BaseModel):
-    camera_ids: Optional[List[str]] = Field(None, description="Specific camera IDs to analyze")
-    district: Optional[str] = Field(None, description="District filter (e.g. 'Quận 1')")
-    limit: int = Field(10, ge=1, le=50, description="Max cameras to analyze in this batch")
-
-
-class EnqueueRequest(BaseModel):
-    camera_ids: List[str] = Field(..., min_length=1, description="List of camera IDs to enqueue")
-
-
-@router.get("/queue/status")
-async def get_queue_status() -> Dict[str, Any]:
-    """Returns real-time status of the automated background AI flood analysis queue."""
-    from app.services.flood_queue_service import flood_queue_service
-    return flood_queue_service.get_status()
-
-
-@router.post("/queue/trigger")
-async def trigger_queue_cycle() -> Dict[str, Any]:
-    """Forces an immediate analysis cycle across all cameras, skipping 30-minute interval."""
-    from app.services.flood_queue_service import flood_queue_service
-    status_data = await flood_queue_service.trigger_now()
-    return {"success": True, "message": "Queue cycle triggered immediately", "status": status_data}
-
-
-@router.post("/queue/enqueue")
-async def enqueue_cameras_to_queue(req: EnqueueRequest) -> Dict[str, Any]:
-    """Enqueues specific cameras into the background processing queue."""
-    from app.services.flood_queue_service import flood_queue_service
-    added = await flood_queue_service.enqueue_cameras(req.camera_ids)
-    return {"success": True, "enqueued_count": added, "status": flood_queue_service.get_status()}
-
-
-@router.post("/queue/pause")
-async def pause_queue() -> Dict[str, Any]:
-    """Pauses automated cycles."""
-    from app.services.flood_queue_service import flood_queue_service
-    status_data = await flood_queue_service.pause()
-    return {"success": True, "message": "Queue paused", "status": status_data}
-
-
-@router.post("/queue/resume")
-async def resume_queue() -> Dict[str, Any]:
-    """Resumes automated cycles."""
-    from app.services.flood_queue_service import flood_queue_service
-    status_data = await flood_queue_service.resume()
-    return {"success": True, "message": "Queue resumed", "status": status_data}
-
-
-@router.post("/analyze-batch")
-async def analyze_batch_cameras(
-    req: BatchAnalyzeRequest = BatchAnalyzeRequest(),
-    db: AsyncSession = Depends(get_db),
-):
-    """Executes AI flood depth analysis across a batch of cameras with concurrency control."""
-    result = await flood_analysis_service.analyze_batch(
-        session=db,
-        camera_ids=req.camera_ids,
-        district=req.district,
-        limit=req.limit,
-    )
-    return {"success": True, "result": result}
+router = APIRouter()
 
 
 @router.get("/summary")
@@ -148,16 +80,6 @@ async def get_flood_summary(db: AsyncSession = Depends(get_db)) -> Dict[str, Any
     }
 
 
-def haversine_distance(lat1: float, lon1: float, lat2: float, lon2: float) -> float:
-    """Calculates distance between two GPS coordinates in kilometers."""
-    R = 6371.0
-    dlat = math.radians(lat2 - lat1)
-    dlon = math.radians(lon2 - lon1)
-    a = math.sin(dlat / 2) ** 2 + math.cos(math.radians(lat1)) * math.cos(math.radians(lat2)) * math.sin(dlon / 2) ** 2
-    c = 2 * math.atan2(math.sqrt(a), math.sqrt(1 - a))
-    return R * c
-
-
 @router.get("/heatmap")
 async def get_heatmap(db: AsyncSession = Depends(get_db)) -> Dict[str, Any]:
     """Returns GeoJSON FeatureCollection of all monitored flood zones for Mapbox layer rendering."""
@@ -198,7 +120,6 @@ async def get_zone_detail(zone_id: str, db: AsyncSession = Depends(get_db)):
     if not zone:
         raise HTTPException(status_code=404, detail=f"Zone '{zone_id}' not found.")
 
-    # Fetch recent readings
     stmt = (
         select(FloodReadingDB)
         .where(FloodReadingDB.zone_id == zone_id)

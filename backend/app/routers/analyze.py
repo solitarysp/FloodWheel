@@ -3,11 +3,9 @@ from fastapi import APIRouter, File, Form, HTTPException, UploadFile, status
 
 from app.config import settings
 from app.models.flood_reading import AnalysisResponse
-from app.services.flood_reading_parser import FloodReadingParser
-from app.services.gemini_client import GeminiClient
+from app.services.flood_queue_service import flood_queue_service
 
 router = APIRouter(prefix="/analyze", tags=["Analysis"])
-gemini_client = GeminiClient()
 
 ALLOWED_MIME_TYPES = {"image/jpeg", "image/png", "image/webp"}
 
@@ -18,7 +16,7 @@ async def analyze_images(
     camera_angle: str = Form("elevated", description="Camera angle: street_level, elevated, or overhead"),
     location_hint: Optional[str] = Form(None, description="Optional street name or city reference"),
 ):
-    """Analyze up to 5 traffic camera frames to measure flood depth using Gemini VLRDR."""
+    """Analyze up to 5 traffic camera frames to measure flood depth using Gemini VLRDR via AI Queue."""
     if not files:
         raise HTTPException(status_code=400, detail="At least one image must be provided.")
 
@@ -47,25 +45,25 @@ async def analyze_images(
             )
 
         camera_id = f"demo-cam-{idx + 1}"
-        raw_text, model_used, elapsed, tokens = await gemini_client.analyze_image_bytes(
-            image_bytes=content,
-            camera_angle=camera_angle,
-            location_hint=location_hint or file.filename,
-        )
+        file_desc = file.filename or f"Demo Frame #{idx + 1}"
 
-        reading = FloodReadingParser.parse(
-            raw_text=raw_text,
+        # Submit task through central AI Queue and await result
+        res: AnalysisResponse = await flood_queue_service.submit_task(
+            task_type="image_upload",
+            source="demo_upload",
+            params={
+                "image_bytes": content,
+                "camera_angle": camera_angle,
+                "location_hint": location_hint or file.filename,
+                "filename": file.filename,
+            },
             camera_id=camera_id,
+            camera_name=file_desc,
+            priority=1,
+            wait_result=True,
+            timeout=60.0,
         )
 
-        results.append(
-            AnalysisResponse(
-                success=True,
-                reading=reading,
-                inference_time_ms=round(elapsed * 1000, 1),
-                model_used=model_used,
-                tokens_used=tokens,
-            )
-        )
+        results.append(res)
 
     return results

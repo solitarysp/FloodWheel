@@ -37,6 +37,9 @@ lint: ## Run code linters
 	@echo "Running backend syntax verification..."
 	python3 -m py_compile backend/app/main.py
 
+check-lines: ## Check line count limit (<= 250 lines/file)
+	python3 .agents/skills/code-standards/check_line_limits.py
+
 clean: ## Clean up temporary files, caches, and docker volumes
 	find . -type d -name "__pycache__" -exec rm -rf {} +
 	find . -type d -name ".pytest_cache" -exec rm -rf {} +

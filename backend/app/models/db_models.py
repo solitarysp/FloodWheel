@@ -92,3 +92,50 @@ class OperatorOverride(Base):
     reason = Column(String(255), nullable=False)
     expires_at = Column(DateTime(timezone=True), nullable=False)
     created_at = Column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc))
+
+
+class AIQueueTaskDB(Base):
+    __tablename__ = "ai_queue_tasks"
+
+    id = Column(String(64), primary_key=True, index=True)
+    task_type = Column(String(32), nullable=False, index=True)  # cycle_camera, single_camera, batch_camera, image_upload
+    source = Column(String(64), nullable=False, index=True)      # automated_scheduler, camera_grid, admin_dashboard, demo_upload, api
+    status = Column(String(32), nullable=False, default="QUEUED", index=True)  # QUEUED, PROCESSING, COMPLETED, FAILED, SKIPPED
+
+    camera_id = Column(String(64), nullable=True, index=True)
+    camera_name = Column(String(128), nullable=True)
+    location_hint = Column(String(255), nullable=True)
+    camera_angle = Column(String(32), default="elevated")
+    cycle_id = Column(Integer, nullable=True, index=True)
+
+    created_at = Column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc), index=True)
+    started_at = Column(DateTime(timezone=True), nullable=True)
+    completed_at = Column(DateTime(timezone=True), nullable=True)
+
+    duration_ms = Column(Float, nullable=True)
+    queue_wait_ms = Column(Float, nullable=True)
+    inference_time_ms = Column(Float, nullable=True)
+
+    model_used = Column(String(64), nullable=True)
+    tokens_used = Column(Integer, nullable=True)
+
+    flood_detected = Column(Boolean, nullable=True)
+    depth_level = Column(Integer, nullable=True)
+    depth_estimate_cm_min = Column(Integer, default=0)
+    depth_estimate_cm_max = Column(Integer, default=0)
+    confidence_score = Column(Float, nullable=True)
+
+    reference_objects = Column(Text, default="[]")
+    reasoning = Column(Text, nullable=True)
+    alert_message = Column(String(500), nullable=True)
+    error_message = Column(Text, nullable=True)
+    prompt_preview = Column(Text, nullable=True)
+    raw_response = Column(Text, nullable=True)
+    snapshot_url = Column(String(512), nullable=True)
+
+    def get_reference_objects(self) -> List[str]:
+        try:
+            return json.loads(self.reference_objects or "[]")
+        except Exception:
+            return []
+

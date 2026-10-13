@@ -29,4 +29,8 @@ class AnalysisResponse(BaseModel):
     inference_time_ms: float
     model_used: str
     tokens_used: Optional[int] = None
+    raw_response: Optional[str] = None
+    prompt_preview: Optional[str] = None
+    task_id: Optional[str] = None
+
 
