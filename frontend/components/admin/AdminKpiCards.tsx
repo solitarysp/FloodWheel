@@ -4,6 +4,7 @@ import { AdminOverview } from "./types";
 
 interface AdminKpiCardsProps {
   overview: AdminOverview | null;
+  cameras?: any[];
   totalCameras: number;
   totalZones: number;
   totalAlerts: number;
@@ -12,11 +13,27 @@ interface AdminKpiCardsProps {
 
 export const AdminKpiCards: React.FC<AdminKpiCardsProps> = ({
   overview,
+  cameras,
   totalCameras,
   totalZones,
   totalAlerts,
   overriddenZonesCount,
 }) => {
+  const onlineCount =
+    cameras && cameras.length > 0
+      ? cameras.filter((c) => c.status?.toUpperCase() === "ONLINE").length
+      : overview?.cameras?.online || 0;
+
+  const offlineCount =
+    cameras && cameras.length > 0
+      ? cameras.filter((c) => c.status?.toUpperCase() === "OFFLINE").length
+      : overview?.cameras?.offline || 0;
+
+  const totalCount =
+    cameras && cameras.length > 0
+      ? cameras.length
+      : overview?.cameras?.total || totalCameras;
+
   return (
     <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
       {/* Card 1: Cameras */}
@@ -26,12 +43,12 @@ export const AdminKpiCards: React.FC<AdminKpiCardsProps> = ({
           <Camera className="w-4 h-4 text-blue-500" />
         </div>
         <div className="text-2xl font-black text-slate-900">
-          {overview?.cameras?.total || totalCameras}
+          {totalCount}
         </div>
         <div className="mt-2 flex items-center gap-2 text-xs text-slate-500">
-          <span className="text-emerald-600 font-semibold">{overview?.cameras?.online || 0} Online</span>
+          <span className="text-emerald-600 font-semibold">{onlineCount} Online</span>
           <span>&bull;</span>
-          <span className="text-slate-400">{overview?.cameras?.offline || 0} Offline</span>
+          <span className="text-slate-400">{offlineCount} Offline</span>
         </div>
       </div>
 

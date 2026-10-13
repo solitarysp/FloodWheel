@@ -117,6 +117,7 @@ export default function AdminPage() {
 
             <AdminKpiCards
               overview={d.overview}
+              cameras={d.cameras}
               totalCameras={d.cameras.length}
               totalZones={d.zones.length}
               totalAlerts={d.alerts.length}
