@@ -4,6 +4,7 @@ import logging
 from typing import Any, Callable, Dict, List, Optional
 import uuid
 
+from app.config import settings
 from app.db.session import AsyncSessionLocal
 from app.models.db_models import AIQueueTaskDB
 from app.services.flood_queue.discovery import CameraDiscoverer
@@ -40,6 +41,7 @@ class QueueWorkerLoop:
 
         self.running: bool = False
         self.paused: bool = False
+        self.auto_cycle_enabled: bool = getattr(settings, "FLOOD_QUEUE_AUTO_START", False)
         self.status: str = "idle"
         self.current_cycle_id: int = 0
         self.current_camera_id: Optional[str] = None
@@ -75,7 +77,10 @@ class QueueWorkerLoop:
                     continue
 
                 now = datetime.now(timezone.utc)
-                should_run_cycle = not self.paused and (self.next_run_at is None or now >= self.next_run_at)
+                should_run_cycle = not self.paused and (
+                    (self.next_run_at and now >= self.next_run_at)
+                    or (self.next_run_at is None and self.auto_cycle_enabled)
+                )
                 if should_run_cycle:
                     await self.launch_scheduled_cycle()
                     continue
@@ -90,6 +95,8 @@ class QueueWorkerLoop:
                 if self.next_run_at:
                     rem = (self.next_run_at - datetime.now(timezone.utc)).total_seconds()
                     sleep_sec = max(1.0, min(float(self.interval_seconds), rem))
+                elif not self.auto_cycle_enabled:
+                    sleep_sec = 86400.0  # Sleep until awakened by a submitted task or manual trigger
 
                 self.wake_event.clear()
                 try:
@@ -208,9 +215,17 @@ class QueueWorkerLoop:
             "flooded_count": self.cycle_progress["flooded"],
             "max_depth_cm": 0,
         }
-        self.next_run_at = cycle_end_time + timedelta(seconds=self.interval_seconds)
-        logger.info(
-            "=== Cycle #%d Completed in %.1fs: %d cameras (%d flooded). Next in %d min at %s ===",
-            self.current_cycle_id, duration_sec, self.cycle_progress["total"],
-            self.cycle_progress["flooded"], self.interval_seconds // 60, self.next_run_at.isoformat(),
-        )
+        if self.auto_cycle_enabled:
+            self.next_run_at = cycle_end_time + timedelta(seconds=self.interval_seconds)
+            logger.info(
+                "=== Cycle #%d Completed in %.1fs: %d cameras (%d flooded). Next in %d min at %s ===",
+                self.current_cycle_id, duration_sec, self.cycle_progress["total"],
+                self.cycle_progress["flooded"], self.interval_seconds // 60, self.next_run_at.isoformat(),
+            )
+        else:
+            self.next_run_at = None
+            logger.info(
+                "=== Cycle #%d Completed in %.1fs: %d cameras (%d flooded). Auto cycle disabled (idle) ===",
+                self.current_cycle_id, duration_sec, self.cycle_progress["total"],
+                self.cycle_progress["flooded"],
+            )

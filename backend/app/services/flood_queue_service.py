@@ -221,6 +221,7 @@ class FloodAnalysisQueue:
             "status": self.worker.status,
             "is_processing": self.worker.status == "running",
             "is_paused": self.worker.paused,
+            "auto_cycle_enabled": getattr(self.worker, "auto_cycle_enabled", False),
             "interval_seconds": self.interval_seconds,
             "interval_minutes": round(self.interval_seconds / 60, 1),
             "max_cameras_per_cycle": self.max_cameras_per_cycle,

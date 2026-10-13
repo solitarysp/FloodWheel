@@ -213,3 +213,17 @@ async def test_flood_queue_submit_task_priority_order():
         assert item_second.camera_id == "cam-cycle-01"
 
 
+@pytest.mark.asyncio
+async def test_flood_queue_auto_cycle_disabled():
+    """Verifies that auto_cycle_enabled=False prevents automatic cycle scheduling."""
+    queue = FloodAnalysisQueue()
+    queue.worker.auto_cycle_enabled = False
+    assert queue.get_status()["auto_cycle_enabled"] is False
+
+    # Simulate finish_cycle when auto_cycle is disabled
+    now = datetime.now(timezone.utc)
+    queue.worker.finish_cycle(now)
+    assert queue.worker.next_run_at is None
+    assert queue.get_status()["next_run_in_seconds"] == 0
+
+
