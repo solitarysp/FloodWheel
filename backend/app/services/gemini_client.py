@@ -83,16 +83,31 @@ class GeminiClient:
         logger.info(f"GeminiClient ready with {len(self._clients_pool)} active API key(s).")
 
     @staticmethod
-    def _create_sdk_client(key: str) -> Optional[Any]:
-        """Creates a Google GenAI or legacy generativeai client instance."""
+    def _create_sdk_client(key: str, base_url: Optional[str] = None) -> Optional[Any]:
+        """Creates a Google GenAI or legacy generativeai client instance, with optional custom base URL."""
+        endpoint = base_url or getattr(settings, "GEMINI_BASE_URL", None)
+        if endpoint:
+            endpoint = endpoint.strip() or None
+
         try:
             from google import genai
+            if endpoint:
+                logger.info(f"Using custom Gemini endpoint: {endpoint}")
+                return genai.Client(api_key=key, http_options={"base_url": endpoint})
             return genai.Client(api_key=key)
         except Exception as exc:
             logger.debug(f"google-genai Client failed ({exc}), falling back to google.generativeai...")
             try:
                 import google.generativeai as legacy_genai
-                legacy_genai.configure(api_key=key)
+                if endpoint:
+                    logger.info(f"Using custom legacy Gemini endpoint: {endpoint}")
+                    legacy_genai.configure(
+                        api_key=key,
+                        transport="rest",
+                        client_options={"api_endpoint": endpoint},
+                    )
+                else:
+                    legacy_genai.configure(api_key=key)
                 return legacy_genai
             except Exception as legacy_err:
                 logger.error(f"Failed to initialize Gemini SDK with key: {legacy_err}")

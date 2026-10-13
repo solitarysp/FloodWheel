@@ -1,5 +1,5 @@
 import json
-from typing import List, Union
+from typing import List, Optional, Union
 from pydantic import field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
@@ -18,6 +18,7 @@ class Settings(BaseSettings):
     # Gemini AI
     GEMINI_API_KEY: str = ""
     GEMINI_API_KEYS: str = ""  # Optional comma-separated list of keys for multi-key rotation
+    GEMINI_BASE_URL: Optional[str] = None  # Optional custom API endpoint (e.g., https://my-custom-proxy.com)
     GEMINI_MODEL: str = "gemini-3.5-flash-lite"
     GEMINI_FALLBACK_MODEL: str = "gemini-3.1-flash-lite"
     GEMINI_MIN_CALL_INTERVAL_SECONDS: float = 6.0  # Safe pacing (6.0s = max 10 RPM, well under 15 RPM)

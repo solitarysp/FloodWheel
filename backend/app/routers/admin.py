@@ -178,6 +178,7 @@ async def get_admin_overview(
         "environment": {
             "env": settings.ENVIRONMENT,
             "gemini_model": settings.GEMINI_MODEL,
+            "gemini_base_url": getattr(settings, "GEMINI_BASE_URL", None),
             "queue_interval_minutes": getattr(settings, "FLOOD_QUEUE_INTERVAL_MINUTES", 30),
             "queue_auto_start": getattr(settings, "FLOOD_QUEUE_AUTO_START", False),
         },
