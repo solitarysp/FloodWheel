@@ -126,3 +126,53 @@ async def test_gemini_client_concurrency_lock_single_execution():
 
     # Concurrency must be strictly 1 at all times!
     assert max_concurrent_seen == 1
+
+
+@pytest.mark.asyncio
+async def test_flood_queue_status_includes_max_cameras_per_cycle():
+    queue = FloodAnalysisQueue()
+    assert queue.max_cameras_per_cycle == 15
+    status = queue.get_status()
+    assert "max_cameras_per_cycle" in status
+    assert status["max_cameras_per_cycle"] == 15
+
+
+@pytest.mark.asyncio
+async def test_flood_queue_trigger_now_auto_starts_worker():
+    queue = FloodAnalysisQueue()
+    assert queue._running is False
+    assert queue._loop_task is None
+
+    # Calling trigger_now must auto-boot the worker task
+    await queue.trigger_now()
+    assert queue._running is True
+    assert queue._loop_task is not None
+    assert queue._wake_event.is_set()
+
+    # Clean up
+    await queue.stop()
+    assert queue._running is False
+
+
+@pytest.mark.asyncio
+async def test_flood_queue_fair_rotation_sort():
+    now = datetime.now(timezone.utc)
+    cams = [
+        {"id": "cam-old", "last_polled_at": now - timedelta(hours=2)},
+        {"id": "cam-new", "last_polled_at": now - timedelta(minutes=10)},
+        {"id": "cam-never", "last_polled_at": None},
+        {"id": "cam-medium", "last_polled_at": now - timedelta(hours=1)},
+    ]
+
+    def _sort_key(c):
+        ts = c.get("last_polled_at")
+        if ts is None:
+            return (0, datetime.min.replace(tzinfo=timezone.utc))
+        if ts.tzinfo is None:
+            ts = ts.replace(tzinfo=timezone.utc)
+        return (1, ts)
+
+    cams.sort(key=_sort_key)
+    # Order must be: cam-never (never polled) -> cam-old (polled 2h ago) -> cam-medium (1h ago) -> cam-new (10m ago)
+    assert [c["id"] for c in cams] == ["cam-never", "cam-old", "cam-medium", "cam-new"]
+

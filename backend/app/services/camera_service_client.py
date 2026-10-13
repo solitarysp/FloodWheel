@@ -30,7 +30,7 @@ class CameraServiceClient:
             if httpx:
                 self._client = httpx.AsyncClient(
                     base_url=self.base_url,
-                    timeout=httpx.Timeout(10.0, connect=3.0),
+                    timeout=httpx.Timeout(3.5, connect=2.0),
                 )
         return self._client
 

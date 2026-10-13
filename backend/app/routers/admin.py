@@ -233,10 +233,13 @@ async def update_queue_config(
     """Adjusts cycle interval or camera count limits for the queue scheduler."""
     if req.interval_minutes is not None:
         flood_queue_service.interval_seconds = req.interval_minutes * 60
+    if req.max_cameras_per_cycle is not None:
+        flood_queue_service.max_cameras_per_cycle = req.max_cameras_per_cycle
     return {
         "success": True,
         "message": "Đã cập nhật cấu hình hàng đợi AI.",
         "interval_minutes": flood_queue_service.interval_seconds // 60,
+        "max_cameras_per_cycle": flood_queue_service.max_cameras_per_cycle,
     }
 
 

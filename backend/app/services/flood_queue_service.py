@@ -35,6 +35,7 @@ class FloodAnalysisQueue:
     def __init__(self, interval_minutes: Optional[int] = None):
         interval_m = interval_minutes or getattr(settings, "FLOOD_QUEUE_INTERVAL_MINUTES", 30)
         self.interval_seconds: int = int(interval_m * 60)
+        self.max_cameras_per_cycle: int = getattr(settings, "FLOOD_QUEUE_MAX_CAMERAS_PER_CYCLE", 15)
 
         self._queue: asyncio.Queue = asyncio.Queue()
         self._enqueued_ids: Set[str] = set()
@@ -166,6 +167,11 @@ class FloodAnalysisQueue:
     async def trigger_now(self) -> Dict[str, Any]:
         """Manually forces an immediate analysis cycle, skipping the 30-minute wait."""
         logger.info("Manual trigger requested for FloodAnalysisQueue.")
+        # Self-healing: If background worker loop is stopped or finished, boot it now
+        if not self._running or self._loop_task is None or self._loop_task.done():
+            logger.info("Worker loop is not running. Auto-starting FloodAnalysisQueue worker...")
+            await self.start()
+
         self._paused = False
         self._wake_event.set()
         await self._sync_state_to_redis()
@@ -189,48 +195,88 @@ class FloodAnalysisQueue:
         return enqueued_count
 
     async def _discover_all_cameras(self) -> List[Dict[str, Any]]:
-        """Discovers all monitored cameras from camera-backend and local PostgreSQL database."""
+        """Discovers candidate cameras with fair rotation based on least-recently-polled order."""
         cameras: List[Dict[str, Any]] = []
         seen_ids: Set[str] = set()
+        db_cams_map: Dict[str, Dict[str, Any]] = {}
 
-        # 1. Query dedicated camera-backend
-        try:
-            remote_cams = await self.camera_service_client.list_cameras(limit=500)
-            if remote_cams:
-                for c in remote_cams:
-                    cid = str(c.get("id"))
-                    if cid and cid not in seen_ids:
-                        seen_ids.add(cid)
-                        cameras.append(c)
-        except Exception as exc:
-            logger.warning("Could not discover cameras from camera-backend: %s", exc)
-
-        # 2. Query local database
+        # 1. Query local database for known cameras and their last_polled_at
         try:
             async with AsyncSessionLocal() as session:
                 stmt = select(Camera).where(Camera.status != "OFFLINE")
                 res = await session.execute(stmt)
                 db_cams = list(res.scalars().all())
                 for cam in db_cams:
-                    if cam.id not in seen_ids:
-                        seen_ids.add(cam.id)
-                        cameras.append({
-                            "id": cam.id,
-                            "name": cam.name,
-                            "district": cam.location,
+                    cid = str(cam.id).strip()
+                    if cid:
+                        db_cams_map[cid] = {
+                            "id": cid,
+                            "name": cam.name or cid,
+                            "district": cam.location or "TP. Hồ Chí Minh",
                             "latitude": cam.latitude,
                             "longitude": cam.longitude,
-                            "camera_angle": cam.camera_angle,
-                        })
+                            "camera_angle": cam.camera_angle or "elevated",
+                            "last_polled_at": cam.last_polled_at,
+                            "status": cam.status,
+                        }
         except Exception as exc:
-            logger.warning("Could not discover cameras from local DB: %s", exc)
+            logger.warning("Could not query cameras from local DB: %s", exc)
 
-        max_cams = getattr(settings, "FLOOD_QUEUE_MAX_CAMERAS_PER_CYCLE", 15)
-        if len(cameras) > max_cams:
-            logger.info("Capping cycle discovery to %d cameras (out of %d) to conserve quota.", max_cams, len(cameras))
-            return cameras[:max_cams]
+        # 2. Query dedicated camera-backend microservice
+        try:
+            remote_cams = await self.camera_service_client.list_cameras(limit=500)
+            if remote_cams:
+                for c in remote_cams:
+                    cid = str(c.get("id", "")).strip()
+                    if not cid:
+                        continue
+                    if cid in db_cams_map:
+                        if cid not in seen_ids:
+                            seen_ids.add(cid)
+                            cameras.append(db_cams_map[cid])
+                    else:
+                        if cid not in seen_ids:
+                            seen_ids.add(cid)
+                            cameras.append({
+                                "id": cid,
+                                "name": c.get("name") or cid,
+                                "district": c.get("district") or c.get("name") or "TP. Hồ Chí Minh",
+                                "latitude": c.get("latitude") or 10.7769,
+                                "longitude": c.get("longitude") or 106.7009,
+                                "camera_angle": c.get("camera_angle") or "elevated",
+                                "last_polled_at": None,
+                                "status": "ONLINE",
+                            })
+        except Exception as exc:
+            logger.warning("Could not discover cameras from camera-backend: %s", exc)
 
-        return cameras
+        # 3. Include any remaining DB cameras not returned by remote service
+        for cid, cam_dict in db_cams_map.items():
+            if cid not in seen_ids:
+                seen_ids.add(cid)
+                cameras.append(cam_dict)
+
+        # Fair rotation sort:
+        # Prioritize cameras that have never been polled (last_polled_at is None),
+        # then sort by oldest last_polled_at timestamp.
+        def _sort_key(c: Dict[str, Any]):
+            ts = c.get("last_polled_at")
+            if ts is None:
+                return (0, datetime.min.replace(tzinfo=timezone.utc))
+            if ts.tzinfo is None:
+                ts = ts.replace(tzinfo=timezone.utc)
+            return (1, ts)
+
+        cameras.sort(key=_sort_key)
+
+        max_cams = self.max_cameras_per_cycle
+        selected = cameras[:max_cams]
+        logger.info(
+            "Selected %d candidate cameras for cycle (out of %d total, prioritized by oldest polled).",
+            len(selected),
+            len(cameras),
+        )
+        return selected
 
     async def _process_camera(self, camera_id: str, camera_name: Optional[str] = None) -> Dict[str, Any]:
         """Runs Gemini Vision flood analysis on a single camera with an isolated session."""
@@ -351,37 +397,43 @@ class FloodAnalysisQueue:
                     cam_id = item.get("id") if isinstance(item, dict) else str(item)
                     cam_name = item.get("name") if isinstance(item, dict) else cam_id
 
-                    self.current_camera_id = cam_id
-                    self.current_camera_name = cam_name
-                    await self._sync_state_to_redis()
+                    try:
+                        self.current_camera_id = cam_id
+                        self.current_camera_name = cam_name
+                        await self._sync_state_to_redis()
 
-                    # Analyze single camera
-                    res = await self._process_camera(camera_id=cam_id, camera_name=cam_name)
-                    cycle_results.append(res)
+                        # Analyze single camera
+                        res = await self._process_camera(camera_id=cam_id, camera_name=cam_name)
+                        cycle_results.append(res)
 
-                    if res.get("skipped"):
-                        self.cycle_progress["skipped"] += 1
-                    elif res.get("success"):
-                        self.cycle_progress["success"] += 1
-                        if res.get("flood_detected"):
-                            self.cycle_progress["flooded"] += 1
-                    else:
+                        if res.get("skipped"):
+                            self.cycle_progress["skipped"] += 1
+                        elif res.get("success"):
+                            self.cycle_progress["success"] += 1
+                            if res.get("flood_detected"):
+                                self.cycle_progress["flooded"] += 1
+                        else:
+                            self.cycle_progress["failed"] += 1
+
+                        self.cycle_progress["processed"] += 1
+                        await self._sync_state_to_redis()
+
+                        # Optimized cooperative pacing:
+                        # GeminiClient's internal lock handles strict safe RPM spacing between inferences.
+                        # Cooperative brief pause keeps event loop responsive without adding artificial latency.
+                        if res.get("skipped") or res.get("cached"):
+                            await asyncio.sleep(0.05)
+                        else:
+                            await asyncio.sleep(0.5)
+
+                    except Exception as cam_exc:
+                        logger.error("Error processing camera %s: %s", cam_id, cam_exc)
                         self.cycle_progress["failed"] += 1
-
-                    self.cycle_progress["processed"] += 1
-                    self._enqueued_ids.discard(cam_id)
-                    self._queue.task_done()
-                    await self._sync_state_to_redis()
-
-                    # Polite rate throttle:
-                    # 0.3s for skipped default frames, 0.5s for cache hits, safe pacing (>= 7.0s) after real AI scans
-                    if res.get("skipped"):
-                        await asyncio.sleep(0.3)
-                    elif res.get("cached"):
-                        await asyncio.sleep(0.5)
-                    else:
-                        delay = float(getattr(settings, "GEMINI_MIN_CALL_INTERVAL_SECONDS", 6.0)) + 1.0
-                        await asyncio.sleep(delay)
+                        self.cycle_progress["processed"] += 1
+                    finally:
+                        self._enqueued_ids.discard(cam_id)
+                        self._queue.task_done()
+                        await self._sync_state_to_redis()
 
                 # ----------------- 3. CYCLE FINISHED -----------------
                 # Sau lần chạy cuối cùng: cập nhật thời gian hoàn thành
@@ -441,7 +493,20 @@ class FloodAnalysisQueue:
             except Exception as loop_exc:
                 logger.exception("Unexpected error in flood queue worker loop: %s", loop_exc)
                 self.status = "error"
-                await asyncio.sleep(30)
+                # Flush pending queue and clear lock sets to recover cleanly
+                while not self._queue.empty():
+                    try:
+                        self._queue.get_nowait()
+                        self._queue.task_done()
+                    except Exception:
+                        break
+                self._enqueued_ids.clear()
+                self.current_camera_id = None
+                self.current_camera_name = None
+                await self._sync_state_to_redis()
+                await asyncio.sleep(10)
+                # Self-healing recovery back to idle
+                self.status = "idle"
 
     def get_status(self) -> Dict[str, Any]:
         """Provides snapshot of the queue status, countdown, and progress."""
@@ -457,6 +522,7 @@ class FloodAnalysisQueue:
             "is_paused": self._paused,
             "interval_seconds": self.interval_seconds,
             "interval_minutes": round(self.interval_seconds / 60, 1),
+            "max_cameras_per_cycle": self.max_cameras_per_cycle,
             "current_camera_id": self.current_camera_id,
             "current_camera_name": self.current_camera_name,
             "queue_length": self._queue.qsize(),
@@ -467,7 +533,7 @@ class FloodAnalysisQueue:
             "next_run_at": self.next_run_at.isoformat() if self.next_run_at else None,
             "next_run_in_seconds": remaining_sec,
             "last_cycle_summary": self.last_cycle_summary,
-            "recent_results": self.recent_results[:10],
+            "recent_results": self.recent_results[:15],
         }
 
 

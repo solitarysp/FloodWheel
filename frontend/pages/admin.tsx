@@ -56,6 +56,10 @@ export default function AdminPage() {
   // Modals state
   const [isAddCameraOpen, setIsAddCameraOpen] = useState<boolean>(false);
   const [selectedZoneForOverride, setSelectedZoneForOverride] = useState<any>(null);
+  const [isConfigModalOpen, setIsConfigModalOpen] = useState<boolean>(false);
+  const [configIntervalMinutes, setConfigIntervalMinutes] = useState<number>(30);
+  const [configMaxCameras, setConfigMaxCameras] = useState<number>(15);
+  const [countdownSeconds, setCountdownSeconds] = useState<number>(0);
 
   // Filters & search
   const [cameraSearch, setCameraSearch] = useState<string>("");
@@ -87,6 +91,15 @@ export default function AdminPage() {
       if (ovResp.ok) {
         const ovData = await ovResp.json();
         setOverview(ovData);
+        if (ovData?.queue?.next_run_in_seconds !== undefined) {
+          setCountdownSeconds(ovData.queue.next_run_in_seconds);
+        }
+        if (ovData?.queue?.interval_minutes) {
+          setConfigIntervalMinutes(ovData.queue.interval_minutes);
+        }
+        if (ovData?.queue?.max_cameras_per_cycle) {
+          setConfigMaxCameras(ovData.queue.max_cameras_per_cycle);
+        }
       }
 
       // 2. Cameras
@@ -116,17 +129,54 @@ export default function AdminPage() {
     }
   };
 
+  // 1-second countdown clock ticker
+  useEffect(() => {
+    if (countdownSeconds <= 0) return;
+    const timer = setInterval(() => {
+      setCountdownSeconds((prev) => Math.max(0, prev - 1));
+    }, 1000);
+    return () => clearInterval(timer);
+  }, [countdownSeconds]);
+
+  // Adaptive polling: 3s during active scan, 15s when idle
   useEffect(() => {
     if (isAuthenticated) {
       fetchDashboardData();
-      const interval = setInterval(fetchDashboardData, 15000); // 15s auto-refresh
+      const isRunning = overview?.queue?.status === "running";
+      const pollMs = isRunning ? 3000 : 15000;
+      const interval = setInterval(fetchDashboardData, pollMs);
       return () => clearInterval(interval);
     }
-  }, [isAuthenticated]);
+  }, [isAuthenticated, overview?.queue?.status]);
 
   const showToast = (type: "success" | "error", message: string) => {
     setNotification({ type, message });
     setTimeout(() => setNotification(null), 4000);
+  };
+
+  const handleSaveQueueConfig = async () => {
+    setActionLoading("config");
+    try {
+      const resp = await adminFetch(`${apiUrl}/api/v1/admin/queue/config`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          interval_minutes: Number(configIntervalMinutes),
+          max_cameras_per_cycle: Number(configMaxCameras),
+        }),
+      });
+      if (resp.ok) {
+        showToast("success", "Đã cập nhật cấu hình chu kỳ quét thành công!");
+        setIsConfigModalOpen(false);
+        await fetchDashboardData();
+      } else {
+        throw new Error("Không thể cập nhật cấu hình hàng đợi.");
+      }
+    } catch (err: any) {
+      showToast("error", err.message);
+    } finally {
+      setActionLoading(null);
+    }
   };
 
   // Queue actions
@@ -568,21 +618,32 @@ export default function AdminPage() {
               <div className="space-y-6">
                 {/* Control Panel */}
                 <div className="bg-white rounded-3xl p-6 border border-slate-200/80 shadow-sm">
-                  <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-6">
+                  <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
                     <div>
-                      <h3 className="text-base font-bold text-slate-900">Điều Khiển Hàng Đợi Tự Động (Queue Control)</h3>
-                      <p className="text-xs text-slate-500 mt-0.5">
-                        Quản lý chu kỳ quét Gemini Vision tự động và pacing interval chống nghẽn quota 429
+                      <div className="flex items-center gap-2">
+                        <div className="w-8 h-8 rounded-xl bg-indigo-50 text-indigo-600 flex items-center justify-center">
+                          <Radio className="w-4 h-4" />
+                        </div>
+                        <h3 className="text-base font-bold text-slate-900">
+                          Điều Khiển & Giám Sát Hàng Đợi AI (AI Queue Monitor)
+                        </h3>
+                      </div>
+                      <p className="text-xs text-slate-500 mt-1">
+                        Tự động quét camera mỗi 30 phút, luân phiên phân tích ngập bằng Gemini Vision và chống nghẽn quota
                       </p>
                     </div>
 
-                    <div className="flex items-center gap-2.5">
+                    <div className="flex flex-wrap items-center gap-2.5">
                       <button
                         onClick={handleTriggerQueue}
-                        disabled={actionLoading === "trigger"}
-                        className="px-4 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold shadow-md shadow-indigo-500/20 transition flex items-center gap-1.5"
+                        disabled={actionLoading === "trigger" || overview?.queue?.status === "running"}
+                        className="px-4 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-700 disabled:opacity-50 text-white text-xs font-bold shadow-md shadow-indigo-500/20 transition flex items-center gap-1.5"
                       >
-                        <Play className="w-3.5 h-3.5" />
+                        {actionLoading === "trigger" ? (
+                          <RefreshCw className="w-3.5 h-3.5 animate-spin" />
+                        ) : (
+                          <Play className="w-3.5 h-3.5" />
+                        )}
                         <span>Quét Ngay Lập Tức</span>
                       </button>
 
@@ -590,7 +651,7 @@ export default function AdminPage() {
                         <button
                           onClick={handleResumeQueue}
                           disabled={actionLoading === "resume"}
-                          className="px-4 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold transition flex items-center gap-1.5"
+                          className="px-4 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold transition flex items-center gap-1.5 shadow-sm"
                         >
                           <Play className="w-3.5 h-3.5" />
                           <span>Tiếp Tục Chạy</span>
@@ -598,36 +659,287 @@ export default function AdminPage() {
                       ) : (
                         <button
                           onClick={handlePauseQueue}
-                          disabled={actionLoading === "pause"}
-                          className="px-4 py-2 rounded-xl bg-amber-500 hover:bg-amber-600 text-white text-xs font-bold transition flex items-center gap-1.5"
+                          disabled={actionLoading === "pause" || overview?.queue?.status === "running"}
+                          className="px-4 py-2 rounded-xl bg-amber-500 hover:bg-amber-600 disabled:opacity-50 text-white text-xs font-bold transition flex items-center gap-1.5 shadow-sm"
                         >
                           <Pause className="w-3.5 h-3.5" />
                           <span>Tạm Dừng</span>
                         </button>
                       )}
-                    </div>
-                  </div>
 
-                  {/* Status telemetry box */}
-                  <div className="grid grid-cols-1 md:grid-cols-3 gap-4 p-4 rounded-2xl bg-slate-50 border border-slate-200/60 text-xs">
-                    <div>
-                      <span className="text-slate-400 block font-medium">Trạng thái hiện tại:</span>
-                      <strong className="text-slate-800 text-sm capitalize">{overview?.queue?.status || "Idle"}</strong>
-                    </div>
-                    <div>
-                      <span className="text-slate-400 block font-medium">Khoảng cách chu kỳ:</span>
-                      <strong className="text-slate-800 text-sm">
-                        {overview?.queue?.interval_minutes || 30} phút / chu kỳ
-                      </strong>
-                    </div>
-                    <div>
-                      <span className="text-slate-400 block font-medium">Camera đang phân tích:</span>
-                      <strong className="text-indigo-600 text-sm truncate block">
-                        {overview?.queue?.current_camera_name || "Chưa có"}
-                      </strong>
+                      <button
+                        onClick={() => setIsConfigModalOpen(true)}
+                        className="p-2 rounded-xl border border-slate-200 hover:bg-slate-50 text-slate-600 transition shadow-xs flex items-center gap-1.5 text-xs font-bold"
+                        title="Cấu hình chu kỳ và số lượng camera"
+                      >
+                        <SettingsIcon className="w-4 h-4 text-slate-500" />
+                        <span className="hidden sm:inline">Cấu Hình</span>
+                      </button>
                     </div>
                   </div>
                 </div>
+
+                {/* HERO SCANNING TELEMETRY & STATUS MONITOR */}
+                {overview?.queue?.status === "running" ? (
+                  <div className="rounded-3xl p-6 bg-gradient-to-br from-indigo-900 via-indigo-800 to-slate-900 text-white shadow-lg shadow-indigo-950/20 border border-indigo-700/50">
+                    <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-5">
+                      <div className="flex items-center gap-3">
+                        <div className="w-10 h-10 rounded-2xl bg-indigo-500/20 border border-indigo-400/30 flex items-center justify-center">
+                          <Radio className="w-5 h-5 text-indigo-300 animate-pulse" />
+                        </div>
+                        <div>
+                          <div className="flex items-center gap-2">
+                            <span className="w-2.5 h-2.5 rounded-full bg-emerald-400 animate-ping" />
+                            <span className="text-xs font-black uppercase tracking-wider text-indigo-300">
+                              Đang Tiến Hành Quét Tự Động
+                            </span>
+                            <span className="text-xs px-2 py-0.5 rounded-full bg-indigo-500/30 border border-indigo-400/30 font-bold">
+                              Đợt #{overview.queue.current_cycle_id || 1}
+                            </span>
+                          </div>
+                          <h4 className="text-lg font-black tracking-tight text-white mt-0.5">
+                            Hệ thống đang phân tích ảnh camera AI Gemini Vision
+                          </h4>
+                        </div>
+                      </div>
+
+                      <div className="text-right">
+                        <span className="text-xs text-indigo-300 block">Tiến độ đợt quét</span>
+                        <span className="text-2xl font-black text-white">
+                          {overview.queue.cycle_progress?.processed || 0} / {overview.queue.cycle_progress?.total || 0}
+                          <span className="text-sm font-semibold text-indigo-300 ml-1.5">
+                            ({overview.queue.cycle_progress?.total > 0
+                              ? Math.round(
+                                  (overview.queue.cycle_progress.processed /
+                                    overview.queue.cycle_progress.total) *
+                                    100
+                                )
+                              : 0}%)
+                          </span>
+                        </span>
+                      </div>
+                    </div>
+
+                    {/* Progress Bar */}
+                    <div className="w-full bg-indigo-950/60 rounded-full h-3 mb-6 p-0.5 border border-indigo-700/40 overflow-hidden">
+                      <div
+                        className="bg-gradient-to-r from-blue-400 via-indigo-400 to-emerald-400 h-2 rounded-full transition-all duration-500 shadow-sm"
+                        style={{
+                          width: `${
+                            overview.queue.cycle_progress?.total > 0
+                              ? Math.min(
+                                  100,
+                                  Math.round(
+                                    (overview.queue.cycle_progress.processed /
+                                      overview.queue.cycle_progress.total) *
+                                      100
+                                  )
+                                )
+                              : 0
+                          }%`,
+                        }}
+                      />
+                    </div>
+
+                    {/* Grid: Camera Under Inspection & Live Counters */}
+                    <div className="grid grid-cols-1 lg:grid-cols-12 gap-4">
+                      {/* Left: Active Camera Spotlight */}
+                      <div className="lg:col-span-5 bg-white/10 backdrop-blur-md rounded-2xl p-4 border border-white/10 flex items-center gap-4">
+                        {overview.queue.current_camera_id ? (
+                          <div className="relative w-20 h-20 rounded-xl overflow-hidden bg-black/40 border border-white/20 shrink-0">
+                            <img
+                              src={`${apiUrl}/api/v1/cameras/${overview.queue.current_camera_id}/snapshot?t=${cacheBuster}`}
+                              alt="Camera snapshot"
+                              className="w-full h-full object-cover"
+                              onError={(e: any) => {
+                                e.target.style.display = "none";
+                              }}
+                            />
+                            <div className="absolute inset-0 flex items-center justify-center text-white/50 text-[10px] pointer-events-none">
+                              <Camera className="w-6 h-6 text-white/30" />
+                            </div>
+                          </div>
+                        ) : (
+                          <div className="w-20 h-20 rounded-xl bg-white/5 border border-white/10 flex items-center justify-center shrink-0">
+                            <Camera className="w-8 h-8 text-white/40" />
+                          </div>
+                        )}
+
+                        <div className="min-w-0 flex-1">
+                          <span className="text-[10px] uppercase font-bold text-indigo-300 block tracking-wider">
+                            Camera đang quét
+                          </span>
+                          <h5 className="text-sm font-black text-white truncate mt-0.5">
+                            {overview.queue.current_camera_name || overview.queue.current_camera_id || "Đang phân tích..."}
+                          </h5>
+                          <span className="text-xs text-indigo-200 block truncate">
+                            ID: {overview.queue.current_camera_id || "N/A"}
+                          </span>
+                          <div className="mt-1.5 flex items-center gap-1.5">
+                            <span className="inline-block w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
+                            <span className="text-[11px] font-semibold text-emerald-300">Đang chạy AI VLRDR...</span>
+                          </div>
+                        </div>
+                      </div>
+
+                      {/* Right: Category Count Chips */}
+                      <div className="lg:col-span-7 grid grid-cols-2 sm:grid-cols-4 gap-2.5">
+                        <div className="bg-white/10 rounded-2xl p-3 border border-white/10 text-center">
+                          <span className="text-[10px] uppercase font-semibold text-indigo-200 block">Đã Quét</span>
+                          <span className="text-xl font-black text-white">
+                            {overview.queue.cycle_progress?.processed || 0}
+                          </span>
+                          <span className="text-[10px] text-indigo-300 block">/ {overview.queue.cycle_progress?.total || 0}</span>
+                        </div>
+
+                        <div className="bg-white/10 rounded-2xl p-3 border border-white/10 text-center">
+                          <span className="text-[10px] uppercase font-semibold text-rose-300 block">Có Ngập</span>
+                          <span className="text-xl font-black text-rose-400">
+                            {overview.queue.cycle_progress?.flooded || 0}
+                          </span>
+                          <span className="text-[10px] text-rose-300/80 block">điểm ngập</span>
+                        </div>
+
+                        <div className="bg-white/10 rounded-2xl p-3 border border-white/10 text-center">
+                          <span className="text-[10px] uppercase font-semibold text-emerald-300 block">An Toàn</span>
+                          <span className="text-xl font-black text-emerald-400">
+                            {Math.max(
+                              0,
+                              (overview.queue.cycle_progress?.success || 0) -
+                                (overview.queue.cycle_progress?.flooded || 0)
+                            )}
+                          </span>
+                          <span className="text-[10px] text-emerald-300/80 block">không ngập</span>
+                        </div>
+
+                        <div className="bg-white/10 rounded-2xl p-3 border border-white/10 text-center">
+                          <span className="text-[10px] uppercase font-semibold text-slate-300 block">Bỏ Qua / Lỗi</span>
+                          <span className="text-xl font-black text-amber-300">
+                            {(overview.queue.cycle_progress?.skipped || 0) +
+                              (overview.queue.cycle_progress?.failed || 0)}
+                          </span>
+                          <span className="text-[10px] text-slate-300/80 block">
+                            {overview.queue.cycle_progress?.skipped || 0} skip • {overview.queue.cycle_progress?.failed || 0} lỗi
+                          </span>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                ) : overview?.queue?.status === "paused" ? (
+                  <div className="rounded-3xl p-6 bg-amber-500/10 border border-amber-300/60 text-amber-900 shadow-sm flex flex-col md:flex-row md:items-center justify-between gap-4">
+                    <div className="flex items-center gap-3">
+                      <div className="w-10 h-10 rounded-2xl bg-amber-500 text-white flex items-center justify-center shrink-0">
+                        <Pause className="w-5 h-5" />
+                      </div>
+                      <div>
+                        <h4 className="text-base font-black text-amber-950">Hàng Đợi AI Đang Tạm Dừng</h4>
+                        <p className="text-xs text-amber-800 mt-0.5">
+                          Chu kỳ quét tự động mỗi {overview?.queue?.interval_minutes || 30} phút đang tạm ngừng. Nhấn Tiếp Tục để kích hoạt lại.
+                        </p>
+                      </div>
+                    </div>
+                    <button
+                      onClick={handleResumeQueue}
+                      disabled={actionLoading === "resume"}
+                      className="px-4 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold transition flex items-center gap-1.5 shadow-sm"
+                    >
+                      <Play className="w-3.5 h-3.5" />
+                      <span>Tiếp Tục Chạy Hàng Đợi</span>
+                    </button>
+                  </div>
+                ) : overview?.queue?.status === "error" ? (
+                  <div className="rounded-3xl p-6 bg-rose-50 border border-rose-200 text-rose-900 shadow-sm flex flex-col md:flex-row md:items-center justify-between gap-4">
+                    <div className="flex items-center gap-3">
+                      <div className="w-10 h-10 rounded-2xl bg-rose-600 text-white flex items-center justify-center shrink-0">
+                        <AlertTriangle className="w-5 h-5" />
+                      </div>
+                      <div>
+                        <h4 className="text-base font-black text-rose-950">Hàng Đợi Gặp Sự Cố</h4>
+                        <p className="text-xs text-rose-700 mt-0.5">
+                          Hệ thống đã tự phục hồi về trạng thái an toàn. Bạn có thể kích hoạt lại chu kỳ quét bất kỳ lúc nào.
+                        </p>
+                      </div>
+                    </div>
+                    <button
+                      onClick={handleTriggerQueue}
+                      disabled={actionLoading === "trigger"}
+                      className="px-4 py-2.5 rounded-xl bg-rose-600 hover:bg-rose-700 text-white text-xs font-bold transition flex items-center gap-1.5 shadow-sm"
+                    >
+                      <RefreshCw className="w-3.5 h-3.5" />
+                      <span>Khởi Động Lại Ngay</span>
+                    </button>
+                  </div>
+                ) : (
+                  /* IDLE STATE: PROMINENT COUNTDOWN CLOCK & LAST RUN METRICS */
+                  <div className="rounded-3xl p-6 bg-white border border-slate-200/80 shadow-sm">
+                    <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-center">
+                      {/* Left: Countdown Clock */}
+                      <div className="lg:col-span-5 p-5 rounded-2xl bg-gradient-to-br from-indigo-50 to-blue-50/50 border border-indigo-100 flex items-center gap-5">
+                        <div className="w-12 h-12 rounded-2xl bg-indigo-600 text-white flex items-center justify-center shadow-md shadow-indigo-500/20 shrink-0">
+                          <Clock className="w-6 h-6 animate-pulse" />
+                        </div>
+                        <div>
+                          <span className="text-[10px] uppercase font-bold text-indigo-600 tracking-wider block">
+                            Đợt Quét Tiếp Theo (Countdown)
+                          </span>
+                          <div className="text-3xl font-black text-slate-900 font-mono tracking-tight mt-0.5">
+                            {String(Math.floor(countdownSeconds / 60)).padStart(2, "0")}:
+                            {String(countdownSeconds % 60).padStart(2, "0")}
+                          </div>
+                          <span className="text-xs text-slate-500 mt-0.5 block">
+                            Dự kiến lúc:{" "}
+                            <strong className="text-slate-800">
+                              {overview?.queue?.next_run_at
+                                ? new Date(overview.queue.next_run_at).toLocaleTimeString("vi-VN")
+                                : "Sẵn sàng quét"}
+                            </strong>
+                          </span>
+                        </div>
+                      </div>
+
+                      {/* Right: Last Completed Cycle Telemetry */}
+                      <div className="lg:col-span-7 grid grid-cols-2 sm:grid-cols-4 gap-3">
+                        <div className="p-3.5 rounded-2xl bg-slate-50 border border-slate-200/60">
+                          <span className="text-[10px] uppercase font-semibold text-slate-400 block">Thời Lượng Chạy</span>
+                          <div className="text-lg font-black text-slate-800 mt-0.5">
+                            {overview?.queue?.last_cycle_summary?.duration_seconds !== undefined
+                              ? `${overview.queue.last_cycle_summary.duration_seconds}s`
+                              : "N/A"}
+                          </div>
+                          <span className="text-[10px] text-slate-400 block">
+                            Đợt #{overview?.queue?.last_cycle_summary?.cycle_id || overview?.queue?.current_cycle_id || 0}
+                          </span>
+                        </div>
+
+                        <div className="p-3.5 rounded-2xl bg-slate-50 border border-slate-200/60">
+                          <span className="text-[10px] uppercase font-semibold text-slate-400 block">Số Camera Quét</span>
+                          <div className="text-lg font-black text-slate-800 mt-0.5">
+                            {overview?.queue?.last_cycle_summary?.total_cameras || 0}
+                          </div>
+                          <span className="text-[10px] text-slate-400 block">
+                            {overview?.queue?.last_cycle_summary?.successful || 0} thành công
+                          </span>
+                        </div>
+
+                        <div className="p-3.5 rounded-2xl bg-slate-50 border border-slate-200/60">
+                          <span className="text-[10px] uppercase font-semibold text-rose-500 block">Phát Hiện Ngập</span>
+                          <div className="text-lg font-black text-rose-600 mt-0.5">
+                            {overview?.queue?.last_cycle_summary?.flooded_count || 0}
+                          </div>
+                          <span className="text-[10px] text-rose-400 block">vùng ngập</span>
+                        </div>
+
+                        <div className="p-3.5 rounded-2xl bg-slate-50 border border-slate-200/60">
+                          <span className="text-[10px] uppercase font-semibold text-blue-500 block">Mức Ngập Cao Nhất</span>
+                          <div className="text-lg font-black text-blue-600 mt-0.5">
+                            {overview?.queue?.last_cycle_summary?.max_depth_cm || 0} cm
+                          </div>
+                          <span className="text-[10px] text-blue-400 block">ước tính AI</span>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                )}
 
                 {/* Recent scan results */}
                 <div className="bg-white rounded-3xl p-6 border border-slate-200/80 shadow-sm">
@@ -1502,6 +1814,88 @@ export default function AdminPage() {
               <div className="text-slate-400 text-[11px]">
                 Tọa độ: {previewCameraSnapshot.latitude}, {previewCameraSnapshot.longitude}
               </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Queue Configuration Modal */}
+      {isConfigModalOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 backdrop-blur-xs p-4 animate-in fade-in duration-200">
+          <div className="bg-white rounded-3xl p-6 max-w-md w-full border border-slate-200 shadow-2xl">
+            <div className="flex items-center justify-between mb-4">
+              <div className="flex items-center gap-2.5">
+                <div className="w-9 h-9 rounded-xl bg-indigo-600 text-white flex items-center justify-center shadow-md shadow-indigo-500/20">
+                  <SettingsIcon className="w-4 h-4" />
+                </div>
+                <div>
+                  <h3 className="text-base font-bold text-slate-900">Cấu Hình Chu Kỳ Quét AI</h3>
+                  <p className="text-xs text-slate-500">Tùy chỉnh lịch trình quét và số lượng camera</p>
+                </div>
+              </div>
+              <button
+                onClick={() => setIsConfigModalOpen(false)}
+                className="p-1.5 rounded-xl text-slate-400 hover:text-slate-700 hover:bg-slate-100 transition"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            <div className="space-y-4 mb-6">
+              <div>
+                <label className="block text-xs font-semibold text-slate-700 mb-1">
+                  Khoảng cách giữa các chu kỳ quét (Phút):
+                </label>
+                <input
+                  type="number"
+                  min={1}
+                  max={120}
+                  value={configIntervalMinutes}
+                  onChange={(e) => setConfigIntervalMinutes(Number(e.target.value))}
+                  className="w-full px-3.5 py-2.5 rounded-xl border border-slate-200 text-xs font-bold focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                />
+                <span className="text-[11px] text-slate-400 mt-1 block">
+                  Mặc định: 30 phút. Chu kỳ tiếp theo sẽ đếm ngược sau khi đợt quét hiện tại hoàn tất.
+                </span>
+              </div>
+
+              <div>
+                <label className="block text-xs font-semibold text-slate-700 mb-1">
+                  Số lượng camera quét tối đa mỗi chu kỳ:
+                </label>
+                <input
+                  type="number"
+                  min={1}
+                  max={100}
+                  value={configMaxCameras}
+                  onChange={(e) => setConfigMaxCameras(Number(e.target.value))}
+                  className="w-full px-3.5 py-2.5 rounded-xl border border-slate-200 text-xs font-bold focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                />
+                <span className="text-[11px] text-slate-400 mt-1 block">
+                  Hệ thống tự động luân phiên (Round-Robin) dựa trên camera được quét xa nhất trong quá khứ.
+                </span>
+              </div>
+            </div>
+
+            <div className="flex items-center justify-end gap-2.5">
+              <button
+                onClick={() => setIsConfigModalOpen(false)}
+                className="px-4 py-2 rounded-xl text-xs font-semibold text-slate-600 hover:bg-slate-100 transition"
+              >
+                Hủy Bỏ
+              </button>
+              <button
+                onClick={handleSaveQueueConfig}
+                disabled={actionLoading === "config"}
+                className="px-4 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold transition flex items-center gap-1.5 shadow-md shadow-indigo-500/20"
+              >
+                {actionLoading === "config" ? (
+                  <RefreshCw className="w-3.5 h-3.5 animate-spin" />
+                ) : (
+                  <Check className="w-3.5 h-3.5" />
+                )}
+                <span>Lưu Cấu Hình</span>
+              </button>
             </div>
           </div>
         </div>
