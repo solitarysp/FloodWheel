@@ -29,7 +29,7 @@ class Settings(BaseSettings):
 
     # Background Automated AI Analysis Queue
     FLOOD_QUEUE_INTERVAL_MINUTES: int = 30
-    FLOOD_QUEUE_AUTO_START: bool = True  # Automatically runs every 30 minutes on startup
+    FLOOD_QUEUE_AUTO_START: bool = False  # Disabled by default, only runs if explicitly set to True
     FLOOD_QUEUE_MAX_CAMERAS_PER_CYCLE: int = 15  # Limit cameras per cycle to stay well within daily quota
 
     # Smart Analysis Cache TTL (minutes)

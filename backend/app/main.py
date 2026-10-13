@@ -33,7 +33,7 @@ async def lifespan(app: FastAPI):
 
     # Start automated flood analysis background queue (runs every 30m after last completion)
     from app.services.flood_queue_service import flood_queue_service
-    if getattr(settings, "FLOOD_QUEUE_AUTO_START", True):
+    if getattr(settings, "FLOOD_QUEUE_AUTO_START", False):
         await flood_queue_service.start()
 
     yield
