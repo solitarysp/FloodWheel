@@ -113,10 +113,9 @@ class FloodAnalysisService:
                 depth_estimate_cm_min=0,
                 depth_estimate_cm_max=0,
                 confidence_score=0.0,
-                model_used="skipped-default-image",
-                alert_message="Đang chờ ảnh từ cam",
+                reference_objects="[]",
                 reasoning="Ảnh camera hiện đang là ảnh giả lập / placeholder. Bỏ qua phân tích AI để tránh báo sai, đang chờ ảnh thực tế từ camera.",
-                raw_response="SKIPPED_DEFAULT_MOCK_IMAGE",
+                alert_message="Đang chờ ảnh từ cam",
             )
             session.add(db_reading)
             try:
