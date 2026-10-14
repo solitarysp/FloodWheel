@@ -83,7 +83,7 @@ async def fake_random_flood_readings(
         created_count += 1
 
         # Also push to queue service recent results cache for real-time frontend observation
-        flood_queue_service.record_result({
+        flood_queue_service._record_result({
             "camera_id": cam.id,
             "camera_name": cam.name,
             "task_id": f"test_sim_{cam.id[:8]}",
