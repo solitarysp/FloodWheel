@@ -4,7 +4,7 @@ from datetime import datetime, timezone
 import json
 import logging
 import random
-from typing import Dict, Any
+from typing import Dict, Any, Optional, List
 from fastapi import APIRouter, Depends
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -12,6 +12,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.db.session import get_db
 from app.middleware.auth import AdminUser, get_current_admin
 from app.models.db_models import Camera, FloodReadingDB, FloodZone
+from app.schemas.admin import FakeFloodRequest
 from app.services.flood_queue_service import flood_queue_service
 from app.services.zone_aggregator import ZoneAggregator
 
@@ -21,6 +22,7 @@ router = APIRouter()
 
 @router.post("/test/fake-random-flood")
 async def fake_random_flood_readings(
+    payload: Optional[FakeFloodRequest] = None,
     db: AsyncSession = Depends(get_db),
     current_admin: AdminUser = Depends(get_current_admin),
 ) -> Dict[str, Any]:
@@ -47,24 +49,40 @@ async def fake_random_flood_readings(
         {"depth_level": 3, "min_cm": 45, "max_cm": 70, "reason": "Severe roadway submergence above exhaust pipes and car door sills (45-70cm depth)."},
     ]
 
-    for cam in cameras:
-        # 50% chance of flood vs 50% chance of clear/dry
-        is_flood = random.random() < 0.50
+    # Determine camera allocation if counts are specified
+    camera_assignments: List[tuple[Any, bool]] = []
+    has_custom_counts = payload and (payload.flooded_count is not None or payload.dry_count is not None)
 
+    if has_custom_counts:
+        req_flooded = max(0, payload.flooded_count or 0)
+        req_dry = max(0, payload.dry_count or 0)
+        shuffled_cams = list(cameras)
+        random.shuffle(shuffled_cams)
+
+        selected_cams = shuffled_cams[: req_flooded + req_dry]
+        for idx, cam in enumerate(selected_cams):
+            is_flood = idx < req_flooded
+            camera_assignments.append((cam, is_flood))
+    else:
+        for cam in cameras:
+            camera_assignments.append((cam, random.random() < 0.50))
+
+    for cam, is_flood in camera_assignments:
         if is_flood:
             profile = random.choice(flood_profiles)
             depth_lvl = profile["depth_level"]
             min_cm = profile["min_cm"]
             max_cm = profile["max_cm"]
             reasoning = profile["reason"]
-            alert_msg = f"Cảnh báo ngập {min_cm}-{max_cm}cm tại {cam.name}."
+            alert_msg = f"Flood alert {min_cm}-{max_cm}cm at {cam.name}."
             flooded_count += 1
         else:
             depth_lvl = 0
             min_cm = 0
             max_cm = 0
             reasoning = "Road surface is dry. Traffic moving smoothly without water obstruction."
-            alert_msg = f"Tuyến đường {cam.name} khô ráo, không ghi nhận ngập nước."
+            alert_msg = f"Road {cam.name} is dry, no flooding detected."
+
 
         reading = FloodReadingDB(
             camera_id=cam.id,
@@ -121,5 +139,6 @@ async def fake_random_flood_readings(
         "flooded_count": flooded_count,
         "dry_count": created_count - flooded_count,
         "zones_updated": len(zones_to_update),
-        "message": f"[TEST] Đã tạo ngẫu nhiên {created_count} kết quả giả lập ({flooded_count} cảnh báo ngập, {created_count - flooded_count} an toàn).",
+        "message": f"[TEST] Successfully generated {created_count} simulated readings ({flooded_count} flood alerts, {created_count - flooded_count} dry roads).",
     }
+

@@ -164,11 +164,17 @@ export function useAdminCameraActions(
     }
   };
 
-  const handleFakeRandomFlood = async () => {
+  const handleFakeRandomFlood = async (floodedCount?: number, dryCount?: number) => {
     setActionLoading("fake-random-flood");
     try {
+      const payload: Record<string, number> = {};
+      if (typeof floodedCount === "number") payload.flooded_count = floodedCount;
+      if (typeof dryCount === "number") payload.dry_count = dryCount;
+
       const resp = await adminFetch(`${apiUrl}/api/v1/admin/test/fake-random-flood`, {
         method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: Object.keys(payload).length > 0 ? JSON.stringify(payload) : undefined,
       });
       const data = await resp.json();
       if (resp.ok) {

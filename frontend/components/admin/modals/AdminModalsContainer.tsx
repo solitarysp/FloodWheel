@@ -5,6 +5,7 @@ import { AdminLoginModal } from "../../AdminLoginModal";
 import { CameraPreviewModal } from "./CameraPreviewModal";
 import { QueueConfigModal } from "./QueueConfigModal";
 import { QueueTaskDetailModal } from "./QueueTaskDetailModal";
+import { FakeFloodModal } from "./FakeFloodModal";
 import { getAdminUser } from "../../../lib/auth";
 
 interface AdminModalsContainerProps {
@@ -16,6 +17,14 @@ interface AdminModalsContainerProps {
 export const AdminModalsContainer: React.FC<AdminModalsContainerProps> = ({ d, a, apiUrl }) => {
   return (
     <>
+      <FakeFloodModal
+        isOpen={d.isFakeFloodModalOpen}
+        onClose={() => d.setIsFakeFloodModalOpen(false)}
+        onSubmit={a.handleFakeRandomFlood}
+        isLoading={d.actionLoading === "fake-random-flood"}
+        totalCamerasCount={d.cameras?.length || 20}
+      />
+
       <AddCameraModal
         isOpen={d.isAddCameraOpen}
         onClose={() => d.setIsAddCameraOpen(false)}
