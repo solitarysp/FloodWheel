@@ -46,15 +46,15 @@ export const CameraTable: React.FC<CameraTableProps> = ({
                 }
                 onChange={toggleSelectAll}
                 className="w-4 h-4 rounded text-orange-600 focus:ring-orange-500 border-slate-300 cursor-pointer"
-                title="Chọn tất cả camera"
+                title="Select all cameras"
               />
             </th>
-            <th className="pb-3 w-32">Ảnh Lưu Trữ</th>
-            <th className="pb-3">Tên Camera</th>
-            <th className="pb-3">Vị Trí / Quận</th>
-            <th className="pb-3">Trạng Thái</th>
-            <th className="pb-3">Mức Ngập Gần Nhất</th>
-            <th className="pb-3 text-right">Thao Tác</th>
+            <th className="pb-3 w-32">Snapshot Frame</th>
+            <th className="pb-3">Camera Name</th>
+            <th className="pb-3">Location / District</th>
+            <th className="pb-3">Status</th>
+            <th className="pb-3">Latest Flood Level</th>
+            <th className="pb-3 text-right">Actions</th>
           </tr>
         </thead>
         <tbody className="divide-y divide-slate-100 font-medium">
@@ -78,7 +78,7 @@ export const CameraTable: React.FC<CameraTableProps> = ({
                 <div
                   onClick={() => setPreviewCameraSnapshot(cam)}
                   className="relative w-28 h-16 rounded-xl overflow-hidden bg-slate-900 border border-slate-200/80 cursor-pointer group shadow-xs shrink-0"
-                  title="Nhấn để xem ảnh chụp phóng to"
+                  title="Click to preview snapshot frame"
                 >
                   <img
                     src={`${apiUrl}/api/v1/cameras/${cam.id}/snapshot?t=${cacheBuster}`}
@@ -86,13 +86,13 @@ export const CameraTable: React.FC<CameraTableProps> = ({
                     loading="lazy"
                     onError={(e) => {
                       (e.currentTarget as HTMLImageElement).src =
-                        "data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='160' height='90' viewBox='0 0 160 90' fill='%231e293b'><rect width='160' height='90' fill='%230f172a'/><text x='50%' y='50%' fill='%2364748b' font-size='11' font-family='sans-serif' text-anchor='middle' dominant-baseline='middle'>Mất tín hiệu</text></svg>";
+                        "data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='160' height='90' viewBox='0 0 160 90' fill='%231e293b'><rect width='160' height='90' fill='%230f172a'/><text x='50%' y='50%' fill='%2364748b' font-size='11' font-family='sans-serif' text-anchor='middle' dominant-baseline='middle'>No Signal</text></svg>";
                     }}
                     className="w-full h-full object-cover transition-transform duration-300 group-hover:scale-105"
                   />
                   <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center gap-1 text-white">
                     <Eye className="w-4 h-4 drop-shadow" />
-                    <span className="text-[10px] font-bold drop-shadow">Xem</span>
+                    <span className="text-[10px] font-bold drop-shadow">View</span>
                   </div>
                   <div className="absolute bottom-1 right-1 px-1 py-0.5 rounded bg-black/60 backdrop-blur-xs text-[8px] font-mono text-white/90">
                     SNAPSHOT
@@ -120,13 +120,14 @@ export const CameraTable: React.FC<CameraTableProps> = ({
               </td>
 
               <td className="py-3">
-                {cam.latest_reading?.alert_message === "Đang chờ ảnh từ cam" ? (
+                {cam.latest_reading?.alert_message === "Đang chờ ảnh từ cam" ||
+                cam.latest_reading?.alert_message === "Waiting for camera frame" ? (
                   <span
                     className="px-2.5 py-1 rounded-full text-[10px] font-bold bg-slate-100 text-slate-600 border border-slate-200/80 inline-flex items-center gap-1.5 shadow-xs"
-                    title="Ảnh camera là ảnh mock/mất tín hiệu, AI tạm bỏ qua để chờ ảnh thực tế từ camera"
+                    title="Camera frame is placeholder/no signal, AI temporarily skipped to wait for live camera feed"
                   >
                     <Clock className="w-3 h-3 text-slate-400" />
-                    <span>Đang chờ ảnh từ cam</span>
+                    <span>Waiting for frame</span>
                   </span>
                 ) : cam.latest_reading ? (
                   <span
@@ -141,7 +142,7 @@ export const CameraTable: React.FC<CameraTableProps> = ({
                     Level {cam.latest_reading.depth_level}
                   </span>
                 ) : (
-                  <span className="text-slate-400 text-[10px]">Chưa quét</span>
+                  <span className="text-slate-400 text-[10px]">Not analyzed</span>
                 )}
               </td>
 
@@ -150,7 +151,7 @@ export const CameraTable: React.FC<CameraTableProps> = ({
                   <button
                     onClick={() => handleAnalyzeCamera(cam.id)}
                     disabled={analyzingCameraId === cam.id}
-                    title="Phân tích AI ngay cho camera này"
+                    title="Analyze this camera with AI now"
                     className={`px-2.5 py-1 rounded-lg text-[10px] font-bold transition inline-flex items-center gap-1 shadow-xs ${
                       analyzingCameraId === cam.id
                         ? "bg-amber-100 text-amber-700"
@@ -160,12 +161,12 @@ export const CameraTable: React.FC<CameraTableProps> = ({
                     <Sparkles
                       className={`w-3 h-3 ${analyzingCameraId === cam.id ? "animate-spin" : ""}`}
                     />
-                    <span>{analyzingCameraId === cam.id ? "Đang quét..." : "Quét AI"}</span>
+                    <span>{analyzingCameraId === cam.id ? "Scanning..." : "AI Scan"}</span>
                   </button>
 
                   <button
                     onClick={() => setPreviewCameraSnapshot(cam)}
-                    title="Xem ảnh chi tiết"
+                    title="View snapshot details"
                     className="p-1.5 text-slate-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition"
                   >
                     <Eye className="w-3.5 h-3.5" />
@@ -176,7 +177,7 @@ export const CameraTable: React.FC<CameraTableProps> = ({
                       onClick={() => handleUpdateCameraStatus(cam.id, "ONLINE")}
                       className="px-2 py-1 rounded-lg bg-emerald-50 text-emerald-700 hover:bg-emerald-100 text-[10px] font-bold"
                     >
-                      Bật Online
+                      Set Online
                     </button>
                   )}
                   {cam.status !== "OFFLINE" && (
@@ -184,7 +185,7 @@ export const CameraTable: React.FC<CameraTableProps> = ({
                       onClick={() => handleUpdateCameraStatus(cam.id, "OFFLINE")}
                       className="px-2 py-1 rounded-lg bg-slate-100 text-slate-600 hover:bg-slate-200 text-[10px] font-bold"
                     >
-                      Tắt Offline
+                      Set Offline
                     </button>
                   )}
                   {cam.status !== "MAINTENANCE" && (
@@ -192,7 +193,7 @@ export const CameraTable: React.FC<CameraTableProps> = ({
                       onClick={() => handleUpdateCameraStatus(cam.id, "MAINTENANCE")}
                       className="px-2 py-1 rounded-lg bg-amber-50 text-amber-700 hover:bg-amber-100 text-[10px] font-bold"
                     >
-                      Bảo Trì
+                      Maintenance
                     </button>
                   )}
 
@@ -200,7 +201,7 @@ export const CameraTable: React.FC<CameraTableProps> = ({
                     <button
                       onClick={() => handleDeleteCameraReading(cam.id, cam.name)}
                       disabled={actionLoading === `del-reading-${cam.id}`}
-                      title="Xóa kết quả phân tích AI của camera này"
+                      title="Clear AI reading for this camera"
                       className="p-1.5 text-slate-400 hover:text-amber-600 hover:bg-amber-50 rounded-lg transition"
                     >
                       <RotateCcw className="w-3.5 h-3.5" />
@@ -209,7 +210,7 @@ export const CameraTable: React.FC<CameraTableProps> = ({
 
                   <button
                     onClick={() => handleDeleteCamera(cam.id, cam.name)}
-                    title="Xóa camera"
+                    title="Delete camera"
                     className="p-1.5 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition"
                   >
                     <Trash2 className="w-3.5 h-3.5" />

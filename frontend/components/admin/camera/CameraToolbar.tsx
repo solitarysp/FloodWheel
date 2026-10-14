@@ -43,7 +43,7 @@ export const CameraToolbar: React.FC<CameraToolbarProps> = ({
             type="text"
             value={cameraSearch}
             onChange={(e) => setCameraSearch(e.target.value)}
-            placeholder="Tìm theo tên, ID, quận..."
+            placeholder="Search by name, ID, district..."
             className="w-full pl-9 pr-3.5 py-2 rounded-xl border border-slate-200 text-xs focus:outline-none focus:ring-2 focus:ring-indigo-500"
           />
         </div>
@@ -53,10 +53,10 @@ export const CameraToolbar: React.FC<CameraToolbarProps> = ({
           onChange={(e) => setCameraStatusFilter(e.target.value)}
           className="px-3 py-2 rounded-xl border border-slate-200 text-xs font-semibold text-slate-700 bg-white"
         >
-          <option value="all">Tất cả trạng thái</option>
+          <option value="all">All Statuses</option>
           <option value="online">Online</option>
           <option value="offline">Offline</option>
-          <option value="maintenance">Bảo trì</option>
+          <option value="maintenance">Maintenance</option>
         </select>
       </div>
 
@@ -64,7 +64,7 @@ export const CameraToolbar: React.FC<CameraToolbarProps> = ({
         <div className="flex items-center bg-slate-100 p-1 rounded-xl border border-slate-200/80">
           <button
             onClick={() => setCameraViewMode("table")}
-            title="Dạng bảng chi tiết"
+            title="Detailed Table View"
             className={`px-2.5 py-1.5 rounded-lg text-xs font-bold transition flex items-center gap-1.5 ${
               cameraViewMode === "table"
                 ? "bg-white text-blue-600 shadow-xs"
@@ -72,11 +72,11 @@ export const CameraToolbar: React.FC<CameraToolbarProps> = ({
             }`}
           >
             <List className="w-3.5 h-3.5" />
-            <span className="hidden sm:inline">Bảng</span>
+            <span className="hidden sm:inline">Table</span>
           </button>
           <button
             onClick={() => setCameraViewMode("grid")}
-            title="Dạng lưới ảnh snapshot"
+            title="Snapshot Grid View"
             className={`px-2.5 py-1.5 rounded-lg text-xs font-bold transition flex items-center gap-1.5 ${
               cameraViewMode === "grid"
                 ? "bg-white text-blue-600 shadow-xs"
@@ -84,7 +84,7 @@ export const CameraToolbar: React.FC<CameraToolbarProps> = ({
             }`}
           >
             <LayoutGrid className="w-3.5 h-3.5" />
-            <span className="hidden sm:inline">Lưới ảnh</span>
+            <span className="hidden sm:inline">Grid</span>
           </button>
         </div>
 
@@ -98,47 +98,47 @@ export const CameraToolbar: React.FC<CameraToolbarProps> = ({
           }`}
           title={
             selectedCameraIds.length > 0
-              ? `Kích hoạt phân tích AI ngay lập tức cho ${selectedCameraIds.length} camera đã chọn`
-              : "Chọn camera bằng checkbox để kích hoạt phân tích AI"
+              ? `Trigger AI analysis immediately for ${selectedCameraIds.length} selected cameras`
+              : "Select cameras with checkbox to trigger AI analysis"
           }
         >
           <Flame className={`w-3.5 h-3.5 ${isBatchAnalyzing ? "animate-bounce text-yellow-200" : "text-amber-200"}`} />
           <span>
             {isBatchAnalyzing
-              ? "Đang quét AI..."
+              ? "Scanning AI..."
               : selectedCameraIds.length > 0
-              ? `🔥 Phân Tích AI (${selectedCameraIds.length})`
-              : "🔥 Phân Tích AI"}
+              ? `🔥 AI Analysis (${selectedCameraIds.length})`
+              : "🔥 AI Analysis"}
           </span>
         </button>
 
         <button
           onClick={() => onBatchAnalyze(filteredCameras.map((c) => c.id))}
           disabled={isBatchAnalyzing || filteredCameras.length === 0}
-          title={`Quét AI toàn bộ ${filteredCameras.length} camera đang hiển thị`}
+          title={`Scan all ${filteredCameras.length} currently displayed cameras with AI`}
           className="p-2 rounded-xl border border-slate-200 text-slate-600 hover:bg-orange-50 hover:text-orange-600 hover:border-orange-200 transition text-xs font-semibold flex items-center gap-1.5 shrink-0"
         >
           <Sparkles className="w-3.5 h-3.5 text-orange-500" />
-          <span className="hidden xl:inline">Quét Tất Cả ({filteredCameras.length})</span>
+          <span className="hidden xl:inline">Scan All ({filteredCameras.length})</span>
         </button>
 
         <button
           onClick={onRefreshCache}
-          title="Làm mới toàn bộ ảnh chụp camera"
+          title="Refresh all camera snapshot frames"
           className="p-2 rounded-xl border border-slate-200 text-slate-600 hover:bg-slate-100 hover:text-blue-600 transition text-xs font-semibold flex items-center gap-1.5"
         >
           <RefreshCw className="w-3.5 h-3.5" />
-          <span className="hidden md:inline">Làm mới ảnh</span>
+          <span className="hidden md:inline">Refresh Frames</span>
         </button>
 
         <button
           onClick={onClearAllReadings}
           disabled={actionLoading === "clear-readings"}
-          title="Xóa toàn bộ kết quả phân tích AI và đặt lại các khu vực về Level 0"
+          title="Delete all AI analysis readings and reset all zones to Level 0"
           className="p-2 px-3 rounded-xl border border-rose-200 text-rose-600 hover:bg-rose-50 transition text-xs font-semibold flex items-center gap-1.5 shrink-0"
         >
           <Trash2 className="w-3.5 h-3.5 text-rose-500" />
-          <span className="hidden sm:inline">{actionLoading === "clear-readings" ? "Đang xóa..." : "Xóa All Kết Quả"}</span>
+          <span className="hidden sm:inline">{actionLoading === "clear-readings" ? "Clearing..." : "Clear All Readings"}</span>
         </button>
 
         <button
@@ -146,7 +146,7 @@ export const CameraToolbar: React.FC<CameraToolbarProps> = ({
           className="px-4 py-2 rounded-xl bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold shadow-md shadow-blue-500/20 transition flex items-center gap-1.5 shrink-0"
         >
           <PlusCircle className="w-3.5 h-3.5" />
-          <span>Thêm Camera</span>
+          <span>Add Camera</span>
         </button>
       </div>
     </div>

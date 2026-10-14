@@ -30,11 +30,11 @@ export const QueueControlPanel: React.FC<QueueControlPanelProps> = ({
               ⚡
             </div>
             <h3 className="text-base font-bold text-slate-900">
-              Điều Khiển & Giám Sát Hàng Đợi AI (AI Queue Monitor)
+              AI Queue Control & Monitoring
             </h3>
           </div>
           <p className="text-xs text-slate-500 mt-1">
-            Tự động quét camera mỗi 30 phút, luân phiên phân tích ngập bằng Gemini Vision và chống nghẽn quota
+            Automatically scans cameras every 30 minutes, rotating Gemini Vision analysis and preventing quota throttling
           </p>
         </div>
 
@@ -49,7 +49,7 @@ export const QueueControlPanel: React.FC<QueueControlPanelProps> = ({
             ) : (
               <Play className="w-3.5 h-3.5" />
             )}
-            <span>Quét Ngay Lập Tức</span>
+            <span>Scan Immediately</span>
           </button>
 
           {overview?.queue?.status === "paused" ? (
@@ -59,7 +59,7 @@ export const QueueControlPanel: React.FC<QueueControlPanelProps> = ({
               className="px-4 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold transition flex items-center gap-1.5 shadow-sm"
             >
               <Play className="w-3.5 h-3.5" />
-              <span>Tiếp Tục Chạy</span>
+              <span>Resume Queue</span>
             </button>
           ) : (
             <button
@@ -68,17 +68,17 @@ export const QueueControlPanel: React.FC<QueueControlPanelProps> = ({
               className="px-4 py-2 rounded-xl bg-amber-500 hover:bg-amber-600 disabled:opacity-50 text-white text-xs font-bold transition flex items-center gap-1.5 shadow-sm"
             >
               <Pause className="w-3.5 h-3.5" />
-              <span>Tạm Dừng</span>
+              <span>Pause Queue</span>
             </button>
           )}
 
           <button
             onClick={onOpenConfig}
             className="p-2 rounded-xl border border-slate-200 hover:bg-slate-50 text-slate-600 transition shadow-xs flex items-center gap-1.5 text-xs font-bold"
-            title="Cấu hình chu kỳ và số lượng camera"
+            title="Configure cycle interval and camera limits"
           >
             <SettingsIcon className="w-4 h-4 text-slate-500" />
-            <span className="hidden sm:inline">Cấu Hình</span>
+            <span className="hidden sm:inline">Settings</span>
           </button>
         </div>
       </div>

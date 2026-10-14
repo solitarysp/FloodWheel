@@ -17,7 +17,7 @@ export const QueueTaskTechnicalAudit: React.FC<QueueTaskTechnicalAuditProps> = (
       <div className="flex items-center justify-between">
         <span className="text-xs font-bold uppercase tracking-wider text-slate-700 flex items-center gap-1.5">
           <Sliders className="w-3.5 h-3.5 text-indigo-600" />
-          <span>Dữ Liệu Kỹ Thuật & Raw Response từ AI</span>
+          <span>Technical Audit & AI Raw Response</span>
         </span>
         {rawResponse && (
           <button
@@ -29,7 +29,7 @@ export const QueueTaskTechnicalAudit: React.FC<QueueTaskTechnicalAuditProps> = (
             className="px-2.5 py-1 rounded-lg border border-slate-200 hover:bg-slate-50 text-[11px] font-semibold text-slate-600 flex items-center gap-1 transition"
           >
             {copiedRaw ? <Check className="w-3 h-3 text-emerald-600" /> : <Copy className="w-3 h-3" />}
-            <span>{copiedRaw ? "Đã sao chép!" : "Sao chép Raw Response"}</span>
+            <span>{copiedRaw ? "Copied!" : "Copy Raw Response"}</span>
           </button>
         )}
       </div>

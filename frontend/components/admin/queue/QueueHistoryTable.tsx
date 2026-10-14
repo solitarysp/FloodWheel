@@ -19,7 +19,7 @@ export const QueueHistoryTable: React.FC<QueueHistoryTableProps> = ({
     return (
       <div className="py-12 flex flex-col items-center justify-center gap-2 text-slate-400">
         <div className="w-6 h-6 border-2 border-indigo-600 border-t-transparent rounded-full animate-spin" />
-        <span className="text-xs font-semibold">Đang tải lịch sử hàng đợi từ PostgreSQL...</span>
+        <span className="text-xs font-semibold">Loading queue history from PostgreSQL...</span>
       </div>
     );
   }
@@ -27,7 +27,7 @@ export const QueueHistoryTable: React.FC<QueueHistoryTableProps> = ({
   if (queueHistory.length === 0) {
     return (
       <div className="py-12 text-center text-slate-400 text-xs">
-        Chưa có lệnh gọi AI nào được ghi nhận trong cơ sở dữ liệu.
+        No AI calls recorded in the database yet.
       </div>
     );
   }
@@ -37,13 +37,13 @@ export const QueueHistoryTable: React.FC<QueueHistoryTableProps> = ({
       <table className="w-full text-left text-xs">
         <thead>
           <tr className="border-b border-slate-200 text-slate-400 font-semibold uppercase tracking-wider">
-            <th className="pb-3 px-3">Tác Vụ</th>
-            <th className="pb-3 px-3">Camera / Khung Hình</th>
-            <th className="pb-3 px-3">Mức Ngập & Độ Sâu</th>
+            <th className="pb-3 px-3">Task</th>
+            <th className="pb-3 px-3">Camera / Frame</th>
+            <th className="pb-3 px-3">Flood Level & Depth</th>
             <th className="pb-3 px-3">Model & Latency</th>
             <th className="pb-3 px-3">Queue Wait</th>
-            <th className="pb-3 px-3">Trạng Thái</th>
-            <th className="pb-3 px-3 text-right">Chi Tiết</th>
+            <th className="pb-3 px-3">Status</th>
+            <th className="pb-3 px-3 text-right">Details</th>
           </tr>
         </thead>
         <tbody className="divide-y divide-slate-100 font-medium">
@@ -52,12 +52,12 @@ export const QueueHistoryTable: React.FC<QueueHistoryTableProps> = ({
               <td className="py-3 px-3 whitespace-nowrap">
                 <span className="font-mono text-[11px] font-bold text-slate-500 mr-1.5">#{item.id}</span>
                 <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-slate-100 text-slate-600">
-                  {item.task_type === "cycle_camera" ? `Chu kỳ #${item.cycle_id || 1}` : item.task_type}
+                  {item.task_type === "cycle_camera" ? `Cycle #${item.cycle_id || 1}` : item.task_type}
                 </span>
               </td>
               <td className="py-3 px-3 max-w-[200px]">
-                <div className="font-bold text-slate-900 truncate" title={item.camera_name || item.camera_id || "Khung hình"}>
-                  {item.camera_name || item.camera_id || "Khung hình"}
+                <div className="font-bold text-slate-900 truncate" title={item.camera_name || item.camera_id || "Frame"}>
+                  {item.camera_name || item.camera_id || "Frame"}
                 </div>
                 <div className="text-[10px] text-slate-400 truncate">{item.camera_id}</div>
               </td>
@@ -95,7 +95,7 @@ export const QueueHistoryTable: React.FC<QueueHistoryTableProps> = ({
                   {item.queue_wait_ms !== null && item.queue_wait_ms !== undefined ? `${item.queue_wait_ms}ms` : "-"}
                 </div>
                 <div className="text-[10px] text-slate-400">
-                  {item.duration_ms !== null && item.duration_ms !== undefined ? `Tổng ${item.duration_ms}ms` : ""}
+                  {item.duration_ms !== null && item.duration_ms !== undefined ? `Total ${item.duration_ms}ms` : ""}
                 </div>
               </td>
               <td className="py-3 px-3 whitespace-nowrap">
@@ -120,7 +120,7 @@ export const QueueHistoryTable: React.FC<QueueHistoryTableProps> = ({
                   className="px-2.5 py-1 rounded-lg bg-indigo-50 hover:bg-indigo-100 text-indigo-700 font-bold text-[11px] transition inline-flex items-center gap-1 shadow-xs"
                 >
                   <Eye className="w-3.5 h-3.5" />
-                  <span>Chi Tiết</span>
+                  <span>Details</span>
                 </button>
               </td>
             </tr>

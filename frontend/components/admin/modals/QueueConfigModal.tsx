@@ -33,8 +33,8 @@ export const QueueConfigModal: React.FC<QueueConfigModalProps> = ({
               <SettingsIcon className="w-4 h-4" />
             </div>
             <div>
-              <h3 className="text-base font-bold text-slate-900">Cấu Hình Chu Kỳ Quét AI</h3>
-              <p className="text-xs text-slate-500">Tùy chỉnh lịch trình quét và số lượng camera</p>
+              <h3 className="text-base font-bold text-slate-900">AI Queue Cycle Configuration</h3>
+              <p className="text-xs text-slate-500">Customize schedule intervals and camera limits</p>
             </div>
           </div>
           <button
@@ -48,7 +48,7 @@ export const QueueConfigModal: React.FC<QueueConfigModalProps> = ({
         <div className="space-y-4 mb-6">
           <div>
             <label className="block text-xs font-semibold text-slate-700 mb-1">
-              Khoảng cách giữa các chu kỳ quét (Phút):
+              Interval Between Scan Cycles (Minutes):
             </label>
             <input
               type="number"
@@ -59,13 +59,13 @@ export const QueueConfigModal: React.FC<QueueConfigModalProps> = ({
               className="w-full px-3.5 py-2.5 rounded-xl border border-slate-200 text-xs font-bold focus:outline-none focus:ring-2 focus:ring-indigo-500"
             />
             <span className="text-[11px] text-slate-400 mt-1 block">
-              Mặc định: 30 phút. Chu kỳ tiếp theo sẽ đếm ngược sau khi đợt quét hiện tại hoàn tất.
+              Default: 30 minutes. The next cycle counts down after the current batch finishes.
             </span>
           </div>
 
           <div>
             <label className="block text-xs font-semibold text-slate-700 mb-1">
-              Số lượng camera quét tối đa mỗi chu kỳ:
+              Max Cameras to Scan Per Cycle:
             </label>
             <input
               type="number"
@@ -76,7 +76,7 @@ export const QueueConfigModal: React.FC<QueueConfigModalProps> = ({
               className="w-full px-3.5 py-2.5 rounded-xl border border-slate-200 text-xs font-bold focus:outline-none focus:ring-2 focus:ring-indigo-500"
             />
             <span className="text-[11px] text-slate-400 mt-1 block">
-              Hệ thống tự động luân phiên (Round-Robin) dựa trên camera được quét xa nhất trong quá khứ.
+              The system uses Round-Robin rotation based on cameras least recently analyzed.
             </span>
           </div>
         </div>
@@ -86,7 +86,7 @@ export const QueueConfigModal: React.FC<QueueConfigModalProps> = ({
             onClick={onClose}
             className="px-4 py-2 rounded-xl text-xs font-semibold text-slate-600 hover:bg-slate-100 transition"
           >
-            Hủy Bỏ
+            Cancel
           </button>
           <button
             onClick={onSave}
@@ -98,7 +98,7 @@ export const QueueConfigModal: React.FC<QueueConfigModalProps> = ({
             ) : (
               <Check className="w-3.5 h-3.5" />
             )}
-            <span>Lưu Cấu Hình</span>
+            <span>Save Configuration</span>
           </button>
         </div>
       </div>

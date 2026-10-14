@@ -7,7 +7,7 @@ export function useAdminZoneAlertActions(
   setActionLoading: (loading: string | null) => void
 ) {
   const handleCancelOverride = async (zoneId: string, zoneName: string) => {
-    if (!confirm(`Hủy ghi đè cho khu vực "${zoneName}" và trả về chế độ tự động AI?`)) return;
+    if (!confirm(`Cancel manual override for zone "${zoneName}" and return to AI automatic mode?`)) return;
 
     setActionLoading(`override-${zoneId}`);
     try {
@@ -15,10 +15,10 @@ export function useAdminZoneAlertActions(
         method: "DELETE",
       });
       if (resp.ok) {
-        showToast("success", `Đã hủy ghi đè cho ${zoneName}.`);
+        showToast("success", `Cancelled override for ${zoneName}.`);
         await fetchDashboardData();
       } else {
-        throw new Error("Lỗi khi hủy ghi đè.");
+        throw new Error("Failed to cancel override.");
       }
     } catch (err: any) {
       showToast("error", err.message);
@@ -34,7 +34,7 @@ export function useAdminZoneAlertActions(
         method: "POST",
       });
       if (resp.ok) {
-        showToast("success", `Đã giải quyết cảnh báo #${alertId}.`);
+        showToast("success", `Resolved alert #${alertId}.`);
         await fetchDashboardData();
       }
     } catch (err: any) {

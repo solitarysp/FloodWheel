@@ -27,7 +27,7 @@ export const AdminTabsNav: React.FC<AdminTabsNavProps> = ({
         }`}
       >
         <Radio className="w-4 h-4" />
-        <span>Quản Trị Hàng Đợi AI</span>
+        <span>AI Queue Monitor</span>
       </button>
 
       <button
@@ -39,7 +39,7 @@ export const AdminTabsNav: React.FC<AdminTabsNavProps> = ({
         }`}
       >
         <Camera className="w-4 h-4" />
-        <span>Quản Lý Camera ({camerasCount})</span>
+        <span>Camera Management ({camerasCount})</span>
       </button>
 
       <button
@@ -51,7 +51,7 @@ export const AdminTabsNav: React.FC<AdminTabsNavProps> = ({
         }`}
       >
         <ShieldAlert className="w-4 h-4" />
-        <span>Ghi Đè Vùng Ngập ({zonesCount})</span>
+        <span>Zone Overrides ({zonesCount})</span>
       </button>
 
       <button
@@ -63,7 +63,7 @@ export const AdminTabsNav: React.FC<AdminTabsNavProps> = ({
         }`}
       >
         <AlertTriangle className="w-4 h-4" />
-        <span>Cảnh Báo Khẩn ({activeAlertsCount})</span>
+        <span>Active Alerts ({activeAlertsCount})</span>
       </button>
     </div>
   );

@@ -20,7 +20,7 @@ export const AdminModalsContainer: React.FC<AdminModalsContainerProps> = ({ d, a
         isOpen={d.isAddCameraOpen}
         onClose={() => d.setIsAddCameraOpen(false)}
         onSuccess={() => {
-          d.showToast("success", "Đã thêm camera mới thành công!");
+          d.showToast("success", "Added new camera successfully!");
           d.fetchDashboardData();
         }}
       />
@@ -33,7 +33,7 @@ export const AdminModalsContainer: React.FC<AdminModalsContainerProps> = ({ d, a
           zoneName={d.selectedZoneForOverride.name}
           currentLevel={d.selectedZoneForOverride.current_depth_level}
           onSuccess={() => {
-            d.showToast("success", `Đã cập nhật ghi đè cho ${d.selectedZoneForOverride?.name}`);
+            d.showToast("success", `Updated override for ${d.selectedZoneForOverride?.name}`);
             d.fetchDashboardData();
           }}
         />

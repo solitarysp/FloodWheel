@@ -37,16 +37,16 @@ export const MapToolbar: React.FC<MapToolbarProps> = ({
         <div className="flex items-center gap-2 bg-slate-900/90 backdrop-blur-md px-3.5 py-2 rounded-2xl border border-slate-700/70 text-xs text-white shadow-xl">
           <span className="w-2.5 h-2.5 rounded-full bg-emerald-400 animate-pulse" />
           <span className="font-bold tracking-wide">
-            Bản đồ Lũ & Camera HCMC • {displayedCount}/{totalValidCount} Node
+            HCMC Flood & Camera Map • {displayedCount}/{totalValidCount} Nodes
           </span>
         </div>
 
         <div className="hidden md:flex items-center gap-2 bg-slate-900/90 backdrop-blur-md px-3 py-1.5 rounded-2xl border border-slate-700/70 text-[11px] text-slate-300 shadow-xl">
-          <span>Đã quét: <strong className="text-white">{analyzedCount}</strong></span>
+          <span>Scanned: <strong className="text-white">{analyzedCount}</strong></span>
           <span className="text-slate-600">•</span>
-          <span className="text-rose-400 font-semibold">Điểm ngập: <strong>{floodedCount}</strong></span>
+          <span className="text-rose-400 font-semibold">Flooded: <strong>{floodedCount}</strong></span>
           <span className="text-slate-600">•</span>
-          <span className="text-amber-400 font-semibold">Sâu nhất: <strong>{maxDepthCm}cm</strong></span>
+          <span className="text-amber-400 font-semibold">Max Depth: <strong>{maxDepthCm}cm</strong></span>
         </div>
 
         <div className="flex items-center bg-slate-900/90 backdrop-blur-md p-1 rounded-2xl border border-slate-700/70 text-[11px] shadow-xl">
@@ -56,7 +56,7 @@ export const MapToolbar: React.FC<MapToolbarProps> = ({
               floodFilter === "all" ? "bg-blue-600 text-white font-bold" : "text-slate-400 hover:text-white"
             }`}
           >
-            Tất cả ({totalValidCount})
+            All ({totalValidCount})
           </button>
           <button
             onClick={() => setFloodFilter("flooded")}
@@ -64,7 +64,7 @@ export const MapToolbar: React.FC<MapToolbarProps> = ({
               floodFilter === "flooded" ? "bg-rose-600 text-white font-bold" : "text-rose-400 hover:text-rose-200"
             }`}
           >
-            🔴 Ngập ({floodedCount})
+            🔴 Flooded ({floodedCount})
           </button>
           <button
             onClick={() => setFloodFilter("dry")}
@@ -72,7 +72,7 @@ export const MapToolbar: React.FC<MapToolbarProps> = ({
               floodFilter === "dry" ? "bg-emerald-600 text-white font-bold" : "text-emerald-400 hover:text-emerald-200"
             }`}
           >
-            🟢 Khô ({dryCount})
+            🟢 Dry ({dryCount})
           </button>
           <button
             onClick={() => setFloodFilter("unanalyzed")}
@@ -80,7 +80,7 @@ export const MapToolbar: React.FC<MapToolbarProps> = ({
               floodFilter === "unanalyzed" ? "bg-slate-700 text-white font-bold" : "text-slate-400 hover:text-white"
             }`}
           >
-            ⚪ Chưa quét ({unanalyzedCount})
+            ⚪ Not Analyzed ({unanalyzedCount})
           </button>
         </div>
       </div>
@@ -91,10 +91,10 @@ export const MapToolbar: React.FC<MapToolbarProps> = ({
             onClick={onBatchAnalyze}
             disabled={isBatchAnalyzing}
             className="bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 disabled:opacity-50 text-white px-3.5 py-2 rounded-2xl font-bold text-xs shadow-xl transition flex items-center gap-1.5 active:scale-95"
-            title="Quét và phân tích toàn bộ ảnh camera bằng Gemini Vision AI"
+            title="Scan and analyze all camera frames with Gemini Vision AI"
           >
             <Sparkles className={`w-3.5 h-3.5 ${isBatchAnalyzing ? "animate-spin text-amber-300" : ""}`} />
-            <span>{isBatchAnalyzing ? "Đang quét AI..." : "⚡ Quét AI các camera"}</span>
+            <span>{isBatchAnalyzing ? "Scanning AI..." : "⚡ AI Batch Scan"}</span>
           </button>
         )}
 

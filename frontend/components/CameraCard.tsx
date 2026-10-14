@@ -103,10 +103,11 @@ export const CameraCard: React.FC<CameraCardProps> = ({
 
             {/* Flood Status Badge */}
             {camera.latest_reading ? (
-              camera.latest_reading.alert_message === "Đang chờ ảnh từ cam" ? (
+              camera.latest_reading.alert_message === "Đang chờ ảnh từ cam" ||
+              camera.latest_reading.alert_message === "Waiting for camera frame" ? (
                 <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-semibold bg-slate-100 text-slate-600 border border-slate-300">
                   <Clock className="w-3 h-3 text-slate-400" />
-                  <span>Đang chờ ảnh từ cam</span>
+                  <span>Waiting for frame</span>
                 </span>
               ) : (
                 <span
@@ -120,14 +121,14 @@ export const CameraCard: React.FC<CameraCardProps> = ({
                 >
                   <span>
                     {(camera.latest_reading.depth_level || 0) === 0
-                      ? "Khô ráo (0cm)"
-                      : `Ngập L${camera.latest_reading.depth_level}: ${camera.latest_reading.depth_estimate_cm_max}cm`}
+                      ? "Dry (0cm)"
+                      : `Flooded L${camera.latest_reading.depth_level}: ${camera.latest_reading.depth_estimate_cm_max}cm`}
                   </span>
                 </span>
               )
             ) : (
               <span className="text-[11px] bg-slate-100 text-slate-500 px-2 py-0.5 rounded-full border border-slate-200">
-                Chưa phân tích
+                Not analyzed
               </span>
             )}
 

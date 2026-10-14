@@ -22,11 +22,11 @@ export function useAdminQueueActions(
         }),
       });
       if (resp.ok) {
-        showToast("success", "Đã cập nhật cấu hình chu kỳ quét thành công!");
+        showToast("success", "Queue cycle configuration updated successfully!");
         setIsConfigModalOpen(false);
         await fetchDashboardData();
       } else {
-        throw new Error("Không thể cập nhật cấu hình hàng đợi.");
+        throw new Error("Unable to update AI queue configuration.");
       }
     } catch (err: any) {
       showToast("error", err.message);
@@ -40,11 +40,11 @@ export function useAdminQueueActions(
     try {
       const resp = await adminFetch(`${apiUrl}/api/v1/admin/queue/trigger`, { method: "POST" });
       if (resp.ok) {
-        showToast("success", "Đã kích hoạt quét ngay lập tức!");
+        showToast("success", "Triggered immediate AI scan cycle!");
         await fetchDashboardData();
         await fetchQueueHistory(1);
       } else {
-        throw new Error("Không thể kích hoạt hàng đợi.");
+        throw new Error("Unable to trigger AI queue.");
       }
     } catch (err: any) {
       showToast("error", err.message);
@@ -58,7 +58,7 @@ export function useAdminQueueActions(
     try {
       const resp = await adminFetch(`${apiUrl}/api/v1/admin/queue/pause`, { method: "POST" });
       if (resp.ok) {
-        showToast("success", "Đã tạm dừng hàng đợi quét tự động.");
+        showToast("success", "Paused automatic AI scan queue.");
         await fetchDashboardData();
       }
     } catch (err: any) {
@@ -73,7 +73,7 @@ export function useAdminQueueActions(
     try {
       const resp = await adminFetch(`${apiUrl}/api/v1/admin/queue/resume`, { method: "POST" });
       if (resp.ok) {
-        showToast("success", "Đã tiếp tục hàng đợi quét tự động.");
+        showToast("success", "Resumed automatic AI scan queue.");
         await fetchDashboardData();
         await fetchQueueHistory(1);
       }
@@ -92,31 +92,31 @@ export function useAdminQueueActions(
         const data = await res.json();
         setSelectedTaskDetail(data.task);
       } else {
-        showToast("error", "Không thể tải chi tiết tác vụ.");
+        showToast("error", "Unable to load task details.");
       }
     } catch (err: any) {
-      showToast("error", `Lỗi tải chi tiết: ${err.message}`);
+      showToast("error", `Error loading task details: ${err.message}`);
     } finally {
       setIsDetailModalLoading(false);
     }
   };
 
   const handleClearQueueHistory = async () => {
-    if (!confirm("Bạn có chắc chắn muốn xóa toàn bộ lịch sử hàng đợi AI trong database?")) return;
+    if (!confirm("Are you sure you want to delete all AI queue audit history in the database?")) return;
     setActionLoading("clear-history");
     try {
       const res = await adminFetch(`${apiUrl}/api/v1/admin/queue/history`, {
         method: "DELETE",
       });
       if (res.ok) {
-        showToast("success", "Đã xóa toàn bộ lịch sử hàng đợi AI trong database.");
+        showToast("success", "Deleted all AI queue audit records in the database.");
         await fetchQueueHistory(1);
         await fetchDashboardData();
       } else {
-        showToast("error", "Không thể xóa lịch sử hàng đợi.");
+        showToast("error", "Unable to delete queue history.");
       }
     } catch (err: any) {
-      showToast("error", `Lỗi xóa lịch sử: ${err.message}`);
+      showToast("error", `Error deleting history: ${err.message}`);
     } finally {
       setActionLoading(null);
     }

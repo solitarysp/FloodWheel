@@ -65,7 +65,7 @@ export default function AdminPage() {
   return (
     <div className="min-h-screen bg-slate-50 text-slate-800 flex flex-col font-sans">
       <Head>
-        <title>Trung Tâm Quản Trị Hệ Thống — FloodWheel</title>
+        <title>Admin Control Center — FloodWheel</title>
       </Head>
 
       <Navbar />
@@ -93,16 +93,16 @@ export default function AdminPage() {
             <div className="w-16 h-16 rounded-3xl bg-indigo-50 border border-indigo-100 text-indigo-600 flex items-center justify-center mx-auto mb-4 shadow-sm">
               <ShieldAlert className="w-8 h-8" />
             </div>
-            <h2 className="text-xl font-bold text-slate-900 mb-2">Yêu Cầu Quyền Quản Trị</h2>
+            <h2 className="text-xl font-bold text-slate-900 mb-2">Administrator Access Required</h2>
             <p className="text-xs text-slate-500 mb-6 leading-relaxed">
-              Khu vực quản lý hàng đợi AI, camera giám sát và can thiệp ghi đè mức ngập khẩn cấp yêu cầu xác thực quản trị viên.
+              Managing the AI queue, surveillance cameras, and emergency flood overrides requires administrator authentication.
             </p>
             <button
               onClick={() => d.setIsLoginModalOpen(true)}
               className="w-full py-3 px-4 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-sm shadow-md shadow-indigo-500/20 transition flex items-center justify-center gap-2"
             >
               <ShieldCheck className="w-4 h-4" />
-              <span>Đăng Nhập Quản Trị Viên</span>
+              <span>Admin Login</span>
             </button>
           </div>
         ) : (

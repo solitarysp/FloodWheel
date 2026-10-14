@@ -35,10 +35,11 @@ export const CameraPreviewDrawer: React.FC<CameraPreviewDrawerProps> = ({
             </span>
 
             {selectedCamera.latest_reading ? (
-              selectedCamera.latest_reading.alert_message === "Đang chờ ảnh từ cam" ? (
+              selectedCamera.latest_reading.alert_message === "Đang chờ ảnh từ cam" ||
+              selectedCamera.latest_reading.alert_message === "Waiting for camera frame" ? (
                 <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-semibold bg-slate-800 text-slate-300 border border-slate-700">
                   <Clock className="w-2.5 h-2.5 text-slate-400" />
-                  <span>ĐANG CHỜ ẢNH TỪ CAM</span>
+                  <span>WAITING FOR FRAME</span>
                 </span>
               ) : (
                 <span
@@ -52,14 +53,14 @@ export const CameraPreviewDrawer: React.FC<CameraPreviewDrawerProps> = ({
                 >
                   <span>
                     {(selectedCamera.latest_reading.depth_level || 0) === 0
-                      ? "KHÔ RÁO (0cm)"
-                      : `NGẬP CẤP ${selectedCamera.latest_reading.depth_level}: ${selectedCamera.latest_reading.depth_estimate_cm_max}cm`}
+                      ? "DRY (0cm)"
+                      : `FLOOD L${selectedCamera.latest_reading.depth_level}: ${selectedCamera.latest_reading.depth_estimate_cm_max}cm`}
                   </span>
                 </span>
               )
             ) : (
               <span className="text-[10px] bg-slate-800 text-slate-400 px-2 py-0.5 rounded-full border border-slate-700">
-                Chưa quét AI
+                Not analyzed
               </span>
             )}
 
@@ -106,7 +107,7 @@ export const CameraPreviewDrawer: React.FC<CameraPreviewDrawerProps> = ({
       {selectedCamera.latest_reading ? (
         <div className="p-3.5 bg-slate-900/80 border-t border-slate-800 space-y-2 text-xs">
           <div className="flex items-center justify-between">
-            <span className="font-semibold text-slate-300">Độ sâu ước tính:</span>
+            <span className="font-semibold text-slate-300">Estimated Depth:</span>
             <span className="font-bold text-amber-300 font-mono text-sm">
               {selectedCamera.latest_reading.depth_estimate_cm_min} - {selectedCamera.latest_reading.depth_estimate_cm_max} cm
             </span>
@@ -120,7 +121,7 @@ export const CameraPreviewDrawer: React.FC<CameraPreviewDrawerProps> = ({
 
           {selectedCamera.latest_reading.reasoning && (
             <div className="text-[11px] text-slate-400 leading-snug">
-              <strong className="text-slate-300">Phân tích AI (VLRDR): </strong>
+              <strong className="text-slate-300">AI Analysis (VLRDR): </strong>
               {selectedCamera.latest_reading.reasoning}
             </div>
           )}
@@ -128,7 +129,7 @@ export const CameraPreviewDrawer: React.FC<CameraPreviewDrawerProps> = ({
           {selectedCamera.latest_reading.reference_objects &&
             selectedCamera.latest_reading.reference_objects.length > 0 && (
               <div className="flex flex-wrap items-center gap-1 pt-1">
-                <span className="text-[10px] text-slate-400">Vật thể tham chiếu:</span>
+                <span className="text-[10px] text-slate-400">Reference Objects:</span>
                 {selectedCamera.latest_reading.reference_objects.map((obj, i) => (
                   <span
                     key={i}
@@ -142,7 +143,7 @@ export const CameraPreviewDrawer: React.FC<CameraPreviewDrawerProps> = ({
         </div>
       ) : (
         <div className="p-3.5 bg-slate-900/80 border-t border-slate-800 text-xs text-slate-400 text-center">
-          Chưa có dữ liệu phân tích ngập lụt. Nhấn "Phân tích với AI" để kích hoạt Gemini Vision VLRDR.
+          No flood analysis data yet. Click &quot;Analyze with AI&quot; to trigger Gemini Vision VLRDR.
         </div>
       )}
 
@@ -158,7 +159,7 @@ export const CameraPreviewDrawer: React.FC<CameraPreviewDrawerProps> = ({
             className="inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 text-white font-semibold text-xs shadow-md shadow-blue-500/20 transition hover:scale-[1.02]"
           >
             <Sparkles className="w-3.5 h-3.5" />
-            <span>{selectedCamera.latest_reading ? "Phân tích lại" : "Phân tích với AI"}</span>
+            <span>{selectedCamera.latest_reading ? "Re-analyze" : "Analyze with AI"}</span>
           </button>
         )}
       </div>

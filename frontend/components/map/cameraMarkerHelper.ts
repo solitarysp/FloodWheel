@@ -6,7 +6,7 @@ export function createCameraMarker(L: any, cam: Camera, onSelect: (c: Camera) =>
   const isFlooded = !!reading && ((reading.depth_level || 0) >= 1 || reading.flood_detected);
 
   let pinModifier = "flood-unanalyzed";
-  let badgeLabel = "Chưa quét";
+  let badgeLabel = "Unscanned";
   let iconColor = "text-blue-400";
 
   if (reading) {

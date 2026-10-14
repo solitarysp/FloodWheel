@@ -116,7 +116,7 @@ export const Navbar: React.FC = () => {
 
                   <button
                     onClick={handleLogout}
-                    title="Đăng xuất quản trị"
+                    title="Admin Logout"
                     className="p-1.5 rounded-xl text-slate-400 hover:text-rose-600 hover:bg-rose-50 transition"
                   >
                     <LogOut className="w-4 h-4" />

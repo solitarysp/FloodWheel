@@ -135,10 +135,10 @@ export const CameraToolbar: React.FC<CameraToolbarProps> = ({
             onClick={onFakeRandomFlood}
             disabled={isFakingFlood}
             className="inline-flex items-center gap-1.5 px-3 py-2 bg-amber-500 hover:bg-amber-600 text-white rounded-xl text-xs font-bold shadow-sm shadow-amber-500/20 transition active:scale-[0.98]"
-            title="[TEST] Tạo ngẫu nhiên cảnh báo ngập và không ngập trên các camera"
+            title="[TEST] Generate random flood and dry alerts on cameras"
           >
             <Zap className={`w-3.5 h-3.5 ${isFakingFlood ? "animate-bounce" : ""}`} />
-            <span>{isFakingFlood ? "Đang tạo..." : "⚡ Test Fake Ngập"}</span>
+            <span>{isFakingFlood ? "Generating..." : "⚡ Test Fake Flood"}</span>
           </button>
         )}
       </div>
