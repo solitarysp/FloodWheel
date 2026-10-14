@@ -3,7 +3,7 @@
 - **Project**: FloodWheel
 - **Session ID**: 2026-10-14-camsync10
 - **Mode**: Autonomous Mode (Auto-Approve & Auto-Resolve)
-- **Timestamp**: 2026-10-14T11:08:00+07:00
+- **Timestamp**: 2026-10-14T11:16:00+07:00
 
 ## Stage 1: Workspace Detection
 - **Auto-Decision**: Confirmed brownfield architecture (`camera-backend` + `backend`).
@@ -25,7 +25,8 @@
 - Added polite pause of `0.3s` (`SNAPSHOT_CRAWL_DELAY_SECONDS = 0.3`) after each camera snapshot fetch.
 - Updated `config.py` and `main.py` with `SNAPSHOT_CRAWL_DELAY_SECONDS` and sequential concurrency = 1.
 
-## Bug Fix: AttributeError in test_fake.py
-- Fixed `AttributeError: 'FloodAnalysisQueue' object has no attribute 'record_result'`.
-- Corrected method call to `flood_queue_service._record_result` in `backend/app/routers/admin/test_fake.py`.
-- Verified zero violations against the 250-line file limit across 184 files.
+## Extra Task 3: Remove /demo Page
+- Removed "Gemini Demo" navigation link from [`frontend/components/Navbar.tsx`](frontend/components/Navbar.tsx).
+- Updated home page CTA button in [`frontend/pages/index.tsx`](frontend/pages/index.tsx) to point to `/cameras` ("Explore Live Cameras").
+- Replaced [`frontend/pages/demo.tsx`](frontend/pages/demo.tsx) with an immediate automatic redirect (`router.replace("/cameras")`) so old links or bookmarks seamlessly transition to `/cameras`.
+- Verified zero violations against the 250-line rule across all 184 files.

@@ -45,10 +45,10 @@ export default function HomePage() {
 
           <div className="flex flex-wrap justify-center gap-4 pt-4">
             <Link
-              href="/demo"
+              href="/cameras"
               className="inline-flex items-center gap-2 px-7 py-3.5 rounded-2xl bg-blue-600 hover:bg-blue-700 text-white font-bold text-base shadow-lg shadow-blue-500/25 transition hover:scale-[1.02]"
             >
-              <span>Explore Live Demo (3-Minute)</span>
+              <span>Explore Live Cameras</span>
               <ArrowRight className="w-5 h-5" />
             </Link>
 

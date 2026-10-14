@@ -85,15 +85,7 @@ export const Navbar: React.FC = () => {
               <span>Live Cameras</span>
             </Link>
 
-            <Link
-              href="/demo"
-              className={`hover:text-blue-600 transition flex items-center gap-1.5 ${
-                router.pathname === "/demo" ? "text-blue-600 font-semibold" : ""
-              }`}
-            >
-              <UploadCloud className="w-4 h-4" />
-              <span>Gemini Demo</span>
-            </Link>
+
 
             <Link
               href="/dashboard"
