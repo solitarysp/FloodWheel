@@ -44,6 +44,7 @@ class FloodAnalysisService:
         camera_id: str,
         image_base64: Optional[str] = None,
         force_refresh: bool = False,
+        storage_only: bool = False,
     ) -> AnalysisResponse:
         """Executes flood depth analysis on a camera snapshot and updates zone aggregation."""
         if not image_base64 and not force_refresh:
@@ -96,6 +97,7 @@ class FloodAnalysisService:
                 camera_id=camera_id,
                 camera_name=cam.name if cam else camera_id,
                 force_refresh=force_refresh,
+                storage_only=storage_only,
             )
 
         if not frame_bytes or ImageValidator.is_default_or_invalid(frame_bytes):
