@@ -3,7 +3,7 @@
 - **Project**: FloodWheel
 - **Session ID**: 2026-10-14-camsync10
 - **Mode**: Autonomous Mode (Auto-Approve & Auto-Resolve)
-- **Timestamp**: 2026-10-14T11:16:00+07:00
+- **Timestamp**: 2026-10-14T11:32:00+07:00
 
 ## Stage 1: Workspace Detection
 - **Auto-Decision**: Confirmed brownfield architecture (`camera-backend` + `backend`).
@@ -25,8 +25,8 @@
 - Added polite pause of `0.3s` (`SNAPSHOT_CRAWL_DELAY_SECONDS = 0.3`) after each camera snapshot fetch.
 - Updated `config.py` and `main.py` with `SNAPSHOT_CRAWL_DELAY_SECONDS` and sequential concurrency = 1.
 
-## Extra Task 3: Remove /demo Page
-- Removed "Gemini Demo" navigation link from [`frontend/components/Navbar.tsx`](frontend/components/Navbar.tsx).
+## Extra Task 3: Remove /demo & /dashboard Pages
+- Removed "Gemini Demo" and "Dashboard" navigation links from [`frontend/components/Navbar.tsx`](frontend/components/Navbar.tsx).
 - Updated home page CTA button in [`frontend/pages/index.tsx`](frontend/pages/index.tsx) to point to `/cameras` ("Explore Live Cameras").
-- Replaced [`frontend/pages/demo.tsx`](frontend/pages/demo.tsx) with an immediate automatic redirect (`router.replace("/cameras")`) so old links or bookmarks seamlessly transition to `/cameras`.
-- Verified zero violations against the 250-line rule across all 184 files.
+- Replaced [`frontend/pages/demo.tsx`](frontend/pages/demo.tsx) and [`frontend/pages/dashboard.tsx`](frontend/pages/dashboard.tsx) with immediate automatic redirects (`router.replace("/cameras")`).
+- Verified zero violations against the 250-line rule across all 184 files (reduced warnings from 18 to 17 files).

@@ -87,15 +87,6 @@ export const Navbar: React.FC = () => {
 
 
 
-            <Link
-              href="/dashboard"
-              className={`hover:text-blue-600 transition flex items-center gap-1.5 ${
-                router.pathname === "/dashboard" ? "text-emerald-600 font-semibold" : ""
-              }`}
-            >
-              <Radio className="w-4 h-4 text-emerald-500" />
-              <span>Dashboard</span>
-            </Link>
 
             <a
               href="http://localhost:8000/docs"
