@@ -31,7 +31,8 @@ async def test_snapshot_crawler_cycle_success(tmp_path):
         storage_service=mock_storage,
         cache_service=mock_cache,
         interval_seconds=600,
-        concurrency=4,
+        concurrency=1,
+        delay_seconds=0.0,
     )
 
     with patch("app.services.snapshot_crawler.ImageValidator.is_valid_snapshot", return_value=True):

@@ -112,6 +112,7 @@ export default function AdminPage() {
               loading={d.loading}
               actionLoading={d.actionLoading}
               onClearAllReadings={a.handleClearAllReadings}
+              onFakeRandomFlood={a.handleFakeRandomFlood}
               onRefreshData={d.fetchDashboardData}
             />
 

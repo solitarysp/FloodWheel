@@ -54,6 +54,7 @@ async def lifespan(app: FastAPI):
         cache_service=cache_service,
         interval_seconds=settings.SNAPSHOT_CRAWL_INTERVAL_SECONDS,
         concurrency=settings.SNAPSHOT_CRAWL_CONCURRENCY,
+        delay_seconds=settings.SNAPSHOT_CRAWL_DELAY_SECONDS,
     )
     snapshot_crawler.start()
 

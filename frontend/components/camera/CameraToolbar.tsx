@@ -1,5 +1,5 @@
 import React from "react";
-import { Search, Filter, Radio, RefreshCw, PlusCircle, MapPin, Layers } from "lucide-react";
+import { Search, Filter, Radio, RefreshCw, PlusCircle, MapPin, Layers, Zap } from "lucide-react";
 
 interface CameraToolbarProps {
   searchQuery: string;
@@ -14,6 +14,8 @@ interface CameraToolbarProps {
   isRefreshingAll: boolean;
   onRefreshAll: () => void;
   onOpenAddModal: () => void;
+  onFakeRandomFlood?: () => void;
+  isFakingFlood?: boolean;
 }
 
 export const CameraToolbar: React.FC<CameraToolbarProps> = ({
@@ -29,6 +31,8 @@ export const CameraToolbar: React.FC<CameraToolbarProps> = ({
   isRefreshingAll,
   onRefreshAll,
   onOpenAddModal,
+  onFakeRandomFlood,
+  isFakingFlood = false,
 }) => {
   return (
     <div className="bg-white p-4 rounded-2xl border border-slate-200/80 shadow-sm flex flex-col md:flex-row items-stretch md:items-center justify-between gap-4">
@@ -124,6 +128,19 @@ export const CameraToolbar: React.FC<CameraToolbarProps> = ({
           <PlusCircle className="w-3.5 h-3.5" />
           <span>Add Camera</span>
         </button>
+
+        {/* Temporary Test Fake Flood Button */}
+        {onFakeRandomFlood && (
+          <button
+            onClick={onFakeRandomFlood}
+            disabled={isFakingFlood}
+            className="inline-flex items-center gap-1.5 px-3 py-2 bg-amber-500 hover:bg-amber-600 text-white rounded-xl text-xs font-bold shadow-sm shadow-amber-500/20 transition active:scale-[0.98]"
+            title="[TEST] Tạo ngẫu nhiên cảnh báo ngập và không ngập trên các camera"
+          >
+            <Zap className={`w-3.5 h-3.5 ${isFakingFlood ? "animate-bounce" : ""}`} />
+            <span>{isFakingFlood ? "Đang tạo..." : "⚡ Test Fake Ngập"}</span>
+          </button>
+        )}
       </div>
     </div>
   );

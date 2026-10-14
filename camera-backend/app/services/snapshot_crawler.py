@@ -30,12 +30,14 @@ class SnapshotCrawlerService:
         cache_service: CacheService,
         interval_seconds: Optional[int] = None,
         concurrency: Optional[int] = None,
+        delay_seconds: Optional[float] = None,
     ):
         self.catalog_service = catalog_service
         self.storage_service = storage_service
         self.cache_service = cache_service
         self.interval_seconds = interval_seconds or settings.SNAPSHOT_CRAWL_INTERVAL_SECONDS
         self.concurrency = concurrency or settings.SNAPSHOT_CRAWL_CONCURRENCY
+        self.delay_seconds = delay_seconds if delay_seconds is not None else settings.SNAPSHOT_CRAWL_DELAY_SECONDS
 
         self._task: Optional[asyncio.Task] = None
         self._is_running = False
@@ -104,44 +106,48 @@ class SnapshotCrawlerService:
         skipped = 0
         failed = 0
 
-        logger.info("Starting snapshot crawl cycle for %d cameras...", total)
-        semaphore = asyncio.Semaphore(self.concurrency)
+        logger.info(
+            "Starting snapshot crawl queue for %d cameras (delay: %.2fs between shots)...",
+            total, self.delay_seconds,
+        )
 
-        async def _crawl_single_camera(cam: CameraDTO):
-            nonlocal success, skipped, failed
-            async with semaphore:
+        for idx, cam in enumerate(cameras):
+            if not self._is_running:
+                logger.info("Snapshot crawler stopped mid-cycle.")
+                break
+
+            try:
+                provider = self.catalog_service._providers.get(cam.provider) or self.catalog_service._providers.get("hcmc")
+                if not provider:
+                    skipped += 1
+                    continue
+
+                # Fetch live frame from provider
+                result = await provider.get_snapshot(cam.id)
+                frame_bytes = result[0] if isinstance(result, tuple) else result
+
+                if frame_bytes and ImageValidator.is_valid_snapshot(frame_bytes):
+                    # Persist to disk
+                    await self.storage_service.save_snapshot(cam.id, frame_bytes)
+                    # Pre-warm Redis cache
+                    await self.cache_service.set_snapshot(
+                        cam.id,
+                        frame_bytes,
+                        ttl=float(self.interval_seconds * 1.5),
+                    )
+                    success += 1
+                else:
+                    skipped += 1
+            except Exception as exc:
+                logger.debug("Failed crawling snapshot for camera %s: %s", cam.id, exc)
+                failed += 1
+
+            # Polite queue pause after processing each camera snapshot
+            if self.delay_seconds > 0 and idx < total - 1:
                 try:
-                    provider = self.catalog_service._providers.get(cam.provider) or self.catalog_service._providers.get("hcmc")
-                    if not provider:
-                        skipped += 1
-                        return
-
-                    # Fetch live frame from provider
-                    result = await provider.get_snapshot(cam.id)
-                    frame_bytes = result[0] if isinstance(result, tuple) else result
-
-                    if frame_bytes and ImageValidator.is_valid_snapshot(frame_bytes):
-                        # Persist to disk
-                        await self.storage_service.save_snapshot(cam.id, frame_bytes)
-                        # Pre-warm Redis cache
-                        await self.cache_service.set_snapshot(
-                            cam.id,
-                            frame_bytes,
-                            ttl=float(self.interval_seconds * 1.5),
-                        )
-                        success += 1
-                    else:
-                        skipped += 1
-                except Exception as exc:
-                    logger.debug("Failed crawling snapshot for camera %s: %s", cam.id, exc)
-                    failed += 1
-                finally:
-                    # Small courteous delay to avoid overwhelming upstream NIC
-                    await asyncio.sleep(0.05)
-
-        tasks = [_crawl_single_camera(c) for c in cameras]
-        if tasks:
-            await asyncio.gather(*tasks, return_exceptions=True)
+                    await asyncio.sleep(self.delay_seconds)
+                except asyncio.CancelledError:
+                    break
 
         duration = round(asyncio.get_event_loop().time() - cycle_start, 2)
         self.last_run_completed_at = datetime.now(timezone.utc)
@@ -167,6 +173,7 @@ class SnapshotCrawlerService:
             "enabled": settings.SNAPSHOT_CRAWL_ENABLED,
             "interval_seconds": self.interval_seconds,
             "concurrency": self.concurrency,
+            "delay_seconds": self.delay_seconds,
             "last_run_started_at": self.last_run_started_at.isoformat() if self.last_run_started_at else None,
             "last_run_completed_at": self.last_run_completed_at.isoformat() if self.last_run_completed_at else None,
             "stats": self.stats,

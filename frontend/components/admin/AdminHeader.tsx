@@ -1,11 +1,12 @@
 import React from "react";
-import { Sliders, Trash2, RefreshCw } from "lucide-react";
+import { Sliders, Trash2, RefreshCw, Zap } from "lucide-react";
 
 interface AdminHeaderProps {
   adminUser: { username?: string } | null;
   loading: boolean;
   actionLoading: string | null;
   onClearAllReadings: () => void;
+  onFakeRandomFlood?: () => void;
   onRefreshData: () => void;
 }
 
@@ -14,6 +15,7 @@ export const AdminHeader: React.FC<AdminHeaderProps> = ({
   loading,
   actionLoading,
   onClearAllReadings,
+  onFakeRandomFlood,
   onRefreshData,
 }) => {
   return (
@@ -36,6 +38,18 @@ export const AdminHeader: React.FC<AdminHeaderProps> = ({
         <span className="text-xs text-slate-500 bg-white border border-slate-200 px-3 py-1.5 rounded-xl font-medium">
           Operator: <strong className="text-indigo-600 font-bold">{adminUser?.username || "admin"}</strong>
         </span>
+
+        {onFakeRandomFlood && (
+          <button
+            onClick={onFakeRandomFlood}
+            disabled={actionLoading === "fake-random-flood"}
+            className="px-3.5 py-1.5 bg-amber-50 hover:bg-amber-100 border border-amber-300 text-amber-800 rounded-xl text-xs font-bold transition shadow-xs flex items-center gap-1.5"
+            title="[TEST] Tạo ngẫu nhiên cảnh báo ngập và không ngập trên các camera"
+          >
+            <Zap className={`w-3.5 h-3.5 text-amber-600 ${actionLoading === "fake-random-flood" ? "animate-bounce" : ""}`} />
+            <span>{actionLoading === "fake-random-flood" ? "Đang tạo..." : "⚡ Test Fake Ngập"}</span>
+          </button>
+        )}
 
         <button
           onClick={onClearAllReadings}

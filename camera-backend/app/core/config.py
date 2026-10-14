@@ -40,7 +40,8 @@ class Settings(BaseSettings):
     SESSION_COOKIE_TTL_SECONDS: float = 900.0  # 15 minutes
     CATALOG_SYNC_INTERVAL_SECONDS: int = 21600  # 6 hours
     SNAPSHOT_CRAWL_INTERVAL_SECONDS: int = 600  # 10 minutes periodic crawl
-    SNAPSHOT_CRAWL_CONCURRENCY: int = 8  # bounded parallel requests
+    SNAPSHOT_CRAWL_CONCURRENCY: int = 1  # sequential queue
+    SNAPSHOT_CRAWL_DELAY_SECONDS: float = 0.3  # pause between consecutive snapshots
     SNAPSHOT_CRAWL_ENABLED: bool = True
     HTTP_TIMEOUT_SECONDS: float = 12.0
     SNAPSHOT_STORAGE_DIR: str = "storage/snapshots"

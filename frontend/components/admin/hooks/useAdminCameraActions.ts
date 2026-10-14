@@ -164,6 +164,27 @@ export function useAdminCameraActions(
     }
   };
 
+  const handleFakeRandomFlood = async () => {
+    setActionLoading("fake-random-flood");
+    try {
+      const resp = await adminFetch(`${apiUrl}/api/v1/admin/test/fake-random-flood`, {
+        method: "POST",
+      });
+      const data = await resp.json();
+      if (resp.ok) {
+        showToast("success", data.message || "Đã tạo ngẫu nhiên cảnh báo ngập thành công!");
+        setCacheBuster(Date.now());
+        await fetchDashboardData();
+      } else {
+        throw new Error(data.detail || "Không thể tạo dữ liệu giả lập.");
+      }
+    } catch (err: any) {
+      showToast("error", err.message);
+    } finally {
+      setActionLoading(null);
+    }
+  };
+
   return {
     handleUpdateCameraStatus,
     handleDeleteCamera,
@@ -171,5 +192,6 @@ export function useAdminCameraActions(
     handleClearAllReadings,
     handleAnalyzeCamera,
     handleBatchAnalyze,
+    handleFakeRandomFlood,
   };
 }
