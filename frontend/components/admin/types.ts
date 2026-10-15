@@ -81,9 +81,7 @@ export interface AdminConfigData {
     primary_model: string;
     fallback_model: string;
     min_call_interval_seconds: number;
-    base_url: string;
     api_keys_count: number;
-    api_keys_preview: string[];
   };
   queue: {
     interval_minutes: number;

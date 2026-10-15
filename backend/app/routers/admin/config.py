@@ -15,15 +15,6 @@ logger = logging.getLogger("floodwheel.admin_config")
 router = APIRouter()
 
 
-def _mask_secret(val: str, prefix_len: int = 6, suffix_len: int = 4) -> str:
-    """Masks sensitive strings like API keys, passwords, and tokens."""
-    if not val:
-        return ""
-    if len(val) <= prefix_len + suffix_len:
-        return "***"
-    return f"{val[:prefix_len]}...{val[-suffix_len:]}"
-
-
 def _mask_url_credentials(url_str: str) -> str:
     """Masks username/password in database or cache URLs."""
     if not url_str or "@" not in url_str:
@@ -44,7 +35,6 @@ def get_system_config_dict() -> Dict[str, Any]:
     """Builds a secure, masked summary of the application configuration."""
     raw_keys = settings.GEMINI_API_KEYS or settings.GEMINI_API_KEY or ""
     keys_list = [k.strip() for k in raw_keys.split(",") if k.strip()]
-    masked_keys = [_mask_secret(k) for k in keys_list]
 
     live_concurrency = getattr(flood_queue_service.worker, "concurrency", settings.AI_ANALYSIS_CONCURRENCY)
 
@@ -55,9 +45,8 @@ def get_system_config_dict() -> Dict[str, Any]:
             "primary_model": settings.GEMINI_MODEL,
             "fallback_model": settings.GEMINI_FALLBACK_MODEL,
             "min_call_interval_seconds": float(getattr(settings, "GEMINI_MIN_CALL_INTERVAL_SECONDS", 6.0)),
-            "base_url": settings.GEMINI_BASE_URL or "Default (Google AI Studio)",
             "api_keys_count": len(keys_list),
-            "api_keys_preview": masked_keys[:5],
+            "api_keys_configured": len(keys_list) > 0,
         },
         "queue": {
             "interval_minutes": flood_queue_service.interval_seconds // 60,
