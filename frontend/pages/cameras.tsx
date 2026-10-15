@@ -4,7 +4,6 @@ import dynamic from "next/dynamic";
 import { Navbar } from "../components/Navbar";
 import { Camera } from "../components/CameraCard";
 import { CameraAnalysisModal, AnalysisResponse } from "../components/CameraAnalysisModal";
-import { AddCameraModal } from "../components/AddCameraModal";
 import { CameraHero } from "../components/camera/CameraHero";
 import { CameraToolbar } from "../components/camera/CameraToolbar";
 import { CameraMainContent } from "../components/camera/CameraMainContent";
@@ -37,7 +36,6 @@ export default function CamerasPage() {
   const [capturedFrame, setCapturedFrame] = useState<string | null>(null);
   const [analysisResult, setAnalysisResult] = useState<AnalysisResponse | null>(null);
   const [isModalOpen, setIsModalOpen] = useState<boolean>(false);
-  const [isAddModalOpen, setIsAddModalOpen] = useState<boolean>(false);
   const [isBatchAnalyzing, setIsBatchAnalyzing] = useState<boolean>(false);
 
   const apiUrl = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
@@ -183,7 +181,6 @@ export default function CamerasPage() {
           setRefreshInterval={setRefreshInterval}
           isRefreshingAll={isRefreshingAll}
           onRefreshAll={handleRefreshAll}
-          onOpenAddModal={() => setIsAddModalOpen(true)}
         />
 
         <CameraMainContent
@@ -218,15 +215,6 @@ export default function CamerasPage() {
           }
         />
       )}
-
-      <AddCameraModal
-        isOpen={isAddModalOpen}
-        onClose={() => setIsAddModalOpen(false)}
-        onCameraAdded={() => {
-          fetchCameras();
-          setCacheBuster(Date.now());
-        }}
-      />
     </div>
   );
 }

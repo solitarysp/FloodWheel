@@ -185,7 +185,6 @@ export default function AdminPage() {
                 onRefreshCache={() => d.setCacheBuster(Date.now())}
                 onClearAllReadings={a.handleClearAllReadings}
                 actionLoading={d.actionLoading}
-                onOpenAddCamera={() => d.setIsAddCameraOpen(true)}
                 onSelectNone={() => d.setSelectedCameraIds([])}
                 toggleSelectAll={toggleSelectAll}
                 toggleSelectCamera={toggleSelectCamera}

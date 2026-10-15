@@ -1,5 +1,5 @@
 import React from "react";
-import { Search, Filter, Radio, RefreshCw, PlusCircle, MapPin, Layers, Zap } from "lucide-react";
+import { Search, Filter, Radio, RefreshCw, MapPin, Layers, Zap } from "lucide-react";
 
 interface CameraToolbarProps {
   searchQuery: string;
@@ -13,7 +13,6 @@ interface CameraToolbarProps {
   setRefreshInterval: (interval: number) => void;
   isRefreshingAll: boolean;
   onRefreshAll: () => void;
-  onOpenAddModal: () => void;
   onFakeRandomFlood?: () => void;
   isFakingFlood?: boolean;
 }
@@ -30,7 +29,6 @@ export const CameraToolbar: React.FC<CameraToolbarProps> = ({
   setRefreshInterval,
   isRefreshingAll,
   onRefreshAll,
-  onOpenAddModal,
   onFakeRandomFlood,
   isFakingFlood = false,
 }) => {
@@ -120,14 +118,6 @@ export const CameraToolbar: React.FC<CameraToolbarProps> = ({
           <RefreshCw className={`w-4 h-4 ${isRefreshingAll ? "animate-spin text-blue-600" : ""}`} />
         </button>
 
-        {/* Add Camera CTA */}
-        <button
-          onClick={onOpenAddModal}
-          className="inline-flex items-center gap-1.5 px-3.5 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-xs font-semibold shadow-sm shadow-blue-500/20 transition active:scale-[0.98]"
-        >
-          <PlusCircle className="w-3.5 h-3.5" />
-          <span>Add Camera</span>
-        </button>
 
         {/* Temporary Test Fake Flood Button */}
         {onFakeRandomFlood && (

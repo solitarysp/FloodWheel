@@ -1,5 +1,5 @@
 import React from "react";
-import { Search, List, LayoutGrid, Flame, Sparkles, RefreshCw, Trash2, PlusCircle } from "lucide-react";
+import { Search, List, LayoutGrid, Flame, Sparkles, RefreshCw, Trash2 } from "lucide-react";
 
 interface CameraToolbarProps {
   cameraSearch: string;
@@ -15,7 +15,6 @@ interface CameraToolbarProps {
   onRefreshCache: () => void;
   onClearAllReadings: () => void;
   actionLoading: string | null;
-  onOpenAddCamera: () => void;
 }
 
 export const CameraToolbar: React.FC<CameraToolbarProps> = ({
@@ -32,7 +31,6 @@ export const CameraToolbar: React.FC<CameraToolbarProps> = ({
   onRefreshCache,
   onClearAllReadings,
   actionLoading,
-  onOpenAddCamera,
 }) => {
   return (
     <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4 mb-6">
@@ -141,13 +139,6 @@ export const CameraToolbar: React.FC<CameraToolbarProps> = ({
           <span className="hidden sm:inline">{actionLoading === "clear-readings" ? "Clearing..." : "Clear All Readings"}</span>
         </button>
 
-        <button
-          onClick={onOpenAddCamera}
-          className="px-4 py-2 rounded-xl bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold shadow-md shadow-blue-500/20 transition flex items-center gap-1.5 shrink-0"
-        >
-          <PlusCircle className="w-3.5 h-3.5" />
-          <span>Add Camera</span>
-        </button>
       </div>
     </div>
   );
