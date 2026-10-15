@@ -80,7 +80,7 @@ export const MapToolbar: React.FC<MapToolbarProps> = ({
               floodFilter === "unanalyzed" ? "bg-slate-700 text-white font-bold" : "text-slate-400 hover:text-white"
             }`}
           >
-            ⚪ Not Analyzed ({unanalyzedCount})
+            ⚪ Awaiting Analysis ({unanalyzedCount})
           </button>
         </div>
       </div>

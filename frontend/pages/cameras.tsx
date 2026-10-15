@@ -5,7 +5,6 @@ import { Navbar } from "../components/Navbar";
 import { Camera } from "../components/CameraCard";
 import { CameraAnalysisModal, AnalysisResponse } from "../components/CameraAnalysisModal";
 import { AddCameraModal } from "../components/AddCameraModal";
-import { AiQueueBanner } from "../components/AiQueueBanner";
 import { CameraHero } from "../components/camera/CameraHero";
 import { CameraToolbar } from "../components/camera/CameraToolbar";
 import { CameraMainContent } from "../components/camera/CameraMainContent";
@@ -171,7 +170,6 @@ export default function CamerasPage() {
 
       <main className="flex-1 max-w-7xl mx-auto w-full px-4 sm:px-6 lg:px-8 py-8 space-y-8">
         <CameraHero cameras={cameras} />
-        <AiQueueBanner onDataUpdated={fetchCameras} />
 
         <CameraToolbar
           searchQuery={searchQuery}

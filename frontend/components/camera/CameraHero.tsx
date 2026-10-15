@@ -29,9 +29,8 @@ export const CameraHero: React.FC<CameraHeroProps> = ({ cameras }) => {
         </h1>
         <p className="text-sm sm:text-base text-slate-300 leading-relaxed">
           Monitor real-time municipal traffic CCTV feeds across high-risk corridors. View live{" "}
-          <strong className="text-white">snapshot feeds</strong> from HCMC traffic intersections, then click{" "}
-          <strong className="text-white">"Capture & Analyze"</strong> or run batch scan to measure flood depth in centimeters
-          using Gemini Vision VLRDR without physical sensor hardware.
+          <strong className="text-white">snapshot feeds</strong> from HCMC traffic intersections, with automated
+          flood depth measurement in centimeters powered by Gemini Vision VLRDR without physical sensor hardware.
         </p>
 
         {/* Quick Metrics Strip */}
