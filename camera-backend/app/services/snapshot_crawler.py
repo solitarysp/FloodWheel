@@ -125,8 +125,9 @@ class SnapshotCrawlerService:
                 # Fetch live frame from provider
                 result = await provider.get_snapshot(cam.id)
                 frame_bytes = result[0] if isinstance(result, tuple) else result
+                source = result[1] if isinstance(result, tuple) else "live"
 
-                if frame_bytes and ImageValidator.is_valid_snapshot(frame_bytes):
+                if source == "live" and frame_bytes and ImageValidator.is_valid_snapshot(frame_bytes):
                     # Persist to disk
                     await self.storage_service.save_snapshot(cam.id, frame_bytes)
                     # Pre-warm Redis cache

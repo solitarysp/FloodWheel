@@ -5,8 +5,10 @@ header mismatches, and corrupted or truncated frame payloads.
 """
 
 import hashlib
+import io
 import logging
 from typing import Set
+from PIL import Image
 
 logger = logging.getLogger("camera_service.validator")
 
@@ -67,9 +69,47 @@ class ImageValidator:
         return False
 
     @classmethod
+    def is_default_synthetic_frame(cls, data: bytes) -> bool:
+        """Detects whether a payload is a default/synthetic CCTV frame."""
+        if not data or len(data) < cls.MIN_VALID_SIZE_BYTES:
+            return True
+
+        md5_digest = hashlib.md5(data).hexdigest()
+        if md5_digest in cls.KNOWN_ERROR_MD5:
+            return True
+
+        sha256_digest = hashlib.sha256(data).hexdigest()
+        if sha256_digest in cls.KNOWN_ERROR_SHA256:
+            return True
+
+        try:
+            im = Image.open(io.BytesIO(data))
+            w, h = im.size
+            if (w, h) == (640, 360):
+                p_sky = im.getpixel((10, 50))
+                p_road = im.getpixel((10, 180))
+                p_water = im.getpixel((100, 250))
+                p_bot = im.getpixel((10, 345))
+
+                def _close(p, target, tol=14):
+                    return all(abs(a - b) <= tol for a, b in zip(p[:3], target))
+
+                if (
+                    _close(p_sky, (35, 42, 54))
+                    and _close(p_road, (45, 50, 58))
+                    and _close(p_water, (38, 62, 78))
+                    and _close(p_bot, (15, 18, 24))
+                ):
+                    return True
+        except Exception:
+            pass
+
+        return False
+
+    @classmethod
     def is_valid_snapshot(cls, data: bytes) -> bool:
         """Returns True if the payload is a valid camera snapshot frame."""
-        if cls.is_error_placeholder(data):
+        if cls.is_error_placeholder(data) or cls.is_default_synthetic_frame(data):
             return False
 
         # Verify it has valid image magic headers (JPEG or standard PNG)

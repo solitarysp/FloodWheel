@@ -37,6 +37,7 @@ async def list_cameras(
     keyword: Optional[str] = Query(None, description="Keyword search in street name or code"),
     bbox: Optional[str] = Query(None, description="Bounding box 'min_lat,min_lng,max_lat,max_lng'"),
     status: Optional[str] = Query(None, description="Status filter: UP, DOWN, or ALL"),
+    has_snapshot: Optional[bool] = Query(None, description="Filter cameras with verified valid snapshots on disk"),
     limit: int = Query(50, ge=1, le=1000, description="Items per page"),
     offset: int = Query(0, ge=0, description="Offset index"),
     catalog: CatalogService = Depends(get_catalog_service),
@@ -48,6 +49,7 @@ async def list_cameras(
         keyword=keyword,
         bbox=bbox,
         status=status,
+        has_snapshot=has_snapshot,
         limit=limit,
         offset=offset,
     )

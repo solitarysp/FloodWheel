@@ -113,34 +113,8 @@ class CameraStreamService:
     @classmethod
     def get_stored_disk_snapshot(cls, camera_id: str) -> Optional[bytes]:
         """Reads camera snapshot from local persistent disk storage if present and valid."""
-        if not camera_id:
-            return None
-        safe_id = re.sub(r"[^a-zA-Z0-9_\-]", "_", str(camera_id).strip())
-        from app.services.image_validator import ImageValidator
-        candidate_dirs = []
-        try:
-            from app.config import settings
-            candidate_dirs.append(Path(settings.SNAPSHOT_STORAGE_DIR))
-        except Exception:
-            pass
-        candidate_dirs.extend([
-            Path("/app/storage/snapshots"),
-            Path("storage/snapshots"),
-            Path("camera-backend/storage/snapshots"),
-            Path("../camera-backend/storage/snapshots"),
-        ])
-
-        for c_dir in candidate_dirs:
-            target = c_dir / f"{safe_id}.jpg"
-            if target.is_file():
-                try:
-                    data = target.read_bytes()
-                    if ImageValidator.is_valid_real_snapshot(data):
-                        logger.info("Found valid stored snapshot on disk at %s (%d bytes)", target, len(data))
-                        return data
-                except Exception as exc:
-                    logger.debug("Failed reading candidate snapshot %s: %s", target, exc)
-        return None
+        from app.services.camera_snapshot_finder import CameraSnapshotFinder
+        return CameraSnapshotFinder.get_stored_disk_snapshot(camera_id)
 
     @classmethod
     async def get_snapshot_bytes(
