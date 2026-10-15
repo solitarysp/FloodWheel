@@ -74,3 +74,35 @@ export interface AdminAlert {
   is_active: boolean;
   created_at?: string;
 }
+
+export interface AdminConfigData {
+  ai: {
+    concurrency: number;
+    primary_model: string;
+    fallback_model: string;
+    min_call_interval_seconds: number;
+    base_url: string;
+    api_keys_count: number;
+    api_keys_preview: string[];
+  };
+  queue: {
+    interval_minutes: number;
+    max_cameras_per_cycle: number;
+    auto_start: boolean;
+    cache_minutes: number;
+    status: string;
+    is_processing: boolean;
+  };
+  system: {
+    environment: string;
+    log_level: string;
+    camera_backend_url: string;
+    snapshot_storage_dir: string;
+    database_url: string;
+    redis_url: string;
+    cors_origins: string[];
+    max_image_size_mb: number;
+    max_images_per_request: number;
+  };
+}
+

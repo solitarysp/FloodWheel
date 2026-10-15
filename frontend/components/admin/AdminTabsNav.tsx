@@ -2,8 +2,8 @@ import React from "react";
 import { Radio, Camera, ShieldAlert, AlertTriangle } from "lucide-react";
 
 interface AdminTabsNavProps {
-  activeTab: "queue" | "cameras" | "overrides" | "alerts";
-  setActiveTab: (tab: "queue" | "cameras" | "overrides" | "alerts") => void;
+  activeTab: "queue" | "cameras" | "overrides" | "alerts" | "config";
+  setActiveTab: (tab: "queue" | "cameras" | "overrides" | "alerts" | "config") => void;
   camerasCount: number;
   zonesCount: number;
   activeAlertsCount: number;
@@ -64,6 +64,29 @@ export const AdminTabsNav: React.FC<AdminTabsNavProps> = ({
       >
         <AlertTriangle className="w-4 h-4" />
         <span>Active Alerts ({activeAlertsCount})</span>
+      </button>
+
+      <button
+        onClick={() => setActiveTab("config")}
+        className={`px-4 py-2 rounded-xl text-xs font-bold transition flex items-center gap-2 ${
+          activeTab === "config"
+            ? "bg-indigo-600 text-white shadow-sm shadow-indigo-500/20"
+            : "text-slate-600 hover:bg-slate-100"
+        }`}
+      >
+        <Radio className="w-4 h-4 hidden" />
+        <span className="flex items-center gap-1.5">
+          <svg
+            className="w-4 h-4"
+            fill="none"
+            viewBox="0 0 24 24"
+            stroke="currentColor"
+            strokeWidth={2}
+          >
+            <path strokeLinecap="round" strokeLinejoin="round" d="M12 6V4m0 2a2 2 0 100 4m0-4a2 2 0 110 4m-6 8a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4m6 6v10m6-2a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4" />
+          </svg>
+          System Configuration
+        </span>
       </button>
     </div>
   );

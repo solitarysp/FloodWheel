@@ -80,12 +80,10 @@ class FloodAnalysisQueue:
     def status(self) -> str: return self.worker.status
     @status.setter
     def status(self, val: str): self.worker.status = val
-
     @property
     def _paused(self) -> bool: return self.worker.paused
     @_paused.setter
     def _paused(self, val: bool): self.worker.paused = val
-
     @property
     def current_cycle_id(self) -> int: return self.worker.current_cycle_id
     @current_cycle_id.setter
@@ -114,6 +112,10 @@ class FloodAnalysisQueue:
 
     @property
     def last_cycle_summary(self) -> Dict[str, Any]: return self.worker.last_cycle_summary
+    @property
+    def concurrency(self) -> int: return getattr(self.worker, "concurrency", 1)
+    @concurrency.setter
+    def concurrency(self, val: int): self.worker.concurrency = max(1, val)
 
     async def connect_redis(self) -> bool:
         if aioredis is None: return False

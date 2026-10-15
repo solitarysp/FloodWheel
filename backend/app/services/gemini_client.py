@@ -31,6 +31,13 @@ class GeminiClient:
         """Backward-compatibility alias."""
         return cls._get_semaphore()
 
+    @classmethod
+    def set_concurrency(cls, concurrency: int) -> None:
+        """Dynamically adjusts the concurrency semaphore for AI analyses."""
+        c = max(1, int(concurrency))
+        settings.AI_ANALYSIS_CONCURRENCY = c
+        cls._analysis_semaphore = asyncio.Semaphore(c)
+
     def __init__(self, api_key: Optional[str] = None, model_name: Optional[str] = None):
         self.pool = GeminiClientPool(api_key=api_key)
         self.api_keys = self.pool.api_keys
