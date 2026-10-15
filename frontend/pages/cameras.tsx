@@ -93,13 +93,13 @@ export default function CamerasPage() {
         const data = await res.json();
         const flooded = data.result?.flooded_count || 0;
         const total = data.result?.total_analyzed || 0;
-        alert(`Đã hoàn thành quét AI cho ${total} camera. Phát hiện ${flooded} điểm ngập nước!`);
+        alert(`Completed AI scan for ${total} cameras. Detected ${flooded} flood points!`);
         await fetchCameras();
       } else {
-        alert("Lỗi khi chạy quét AI hàng loạt.");
+        alert("Failed to run batch AI scan.");
       }
     } catch (err: any) {
-      alert(`Lỗi quét hàng loạt: ${err.message}`);
+      alert(`Batch scan error: ${err.message}`);
     } finally {
       setIsBatchAnalyzing(false);
     }

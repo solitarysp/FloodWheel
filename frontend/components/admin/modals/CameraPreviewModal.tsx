@@ -52,34 +52,34 @@ export const CameraPreviewModal: React.FC<CameraPreviewModalProps> = ({
               onClick={() => onAnalyzeCamera(camera.id)}
               disabled={analyzingCameraId === camera.id}
               className="px-3 py-1.5 rounded-xl bg-gradient-to-r from-amber-500 via-orange-500 to-rose-500 hover:from-amber-600 hover:to-rose-600 text-white font-bold text-xs shadow-md shadow-orange-500/20 transition flex items-center gap-1.5"
-              title="Chạy phân tích AI ngay cho ảnh chụp camera này"
+              title="Run AI analysis now for this camera snapshot"
             >
               <Sparkles
                 className={`w-3.5 h-3.5 ${analyzingCameraId === camera.id ? "animate-spin" : ""}`}
               />
               <span>
-                {analyzingCameraId === camera.id ? "Đang quét AI..." : "🔥 Phân Tích AI Ngay"}
+                {analyzingCameraId === camera.id ? "Scanning AI..." : "🔥 AI Analyze Now"}
               </span>
             </button>
 
             <button
               onClick={onRefreshCache}
-              title="Làm mới ảnh chụp"
+              title="Refresh snapshot"
               className="p-2 rounded-xl border border-slate-200 text-slate-600 hover:bg-slate-100 hover:text-blue-600 transition text-xs font-semibold flex items-center gap-1.5"
             >
               <RefreshCw className="w-4 h-4" />
-              <span className="hidden sm:inline">Làm mới</span>
+              <span className="hidden sm:inline">Refresh</span>
             </button>
 
             <a
               href={`${apiUrl}/api/v1/cameras/${camera.id}/snapshot?t=${cacheBuster}`}
               target="_blank"
               rel="noopener noreferrer"
-              title="Mở ảnh gốc trong tab mới"
+              title="Open raw image in new tab"
               className="p-2 rounded-xl border border-slate-200 text-slate-600 hover:bg-slate-100 hover:text-blue-600 transition text-xs font-semibold flex items-center gap-1.5"
             >
               <ExternalLink className="w-4 h-4" />
-              <span className="hidden sm:inline">Ảnh gốc</span>
+              <span className="hidden sm:inline">Raw Image</span>
             </a>
 
             <button
@@ -99,12 +99,12 @@ export const CameraPreviewModal: React.FC<CameraPreviewModalProps> = ({
             className="max-h-[60vh] w-auto max-w-full object-contain rounded-xl shadow-lg"
             onError={(e) => {
               (e.currentTarget as HTMLImageElement).src =
-                "data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='640' height='360' viewBox='0 0 640 360' fill='%231e293b'><rect width='640' height='360' fill='%230f172a'/><text x='50%' y='50%' fill='%2394a3b8' font-size='18' font-family='sans-serif' text-anchor='middle' dominant-baseline='middle'>Không tìm thấy ảnh chụp lưu trữ của camera này</text></svg>";
+                "data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='640' height='360' viewBox='0 0 640 360' fill='%231e293b'><rect width='640' height='360' fill='%230f172a'/><text x='50%' y='50%' fill='%2394a3b8' font-size='18' font-family='sans-serif' text-anchor='middle' dominant-baseline='middle'>No snapshot image found for this camera</text></svg>";
             }}
           />
           <div className="absolute bottom-5 left-5 bg-black/70 backdrop-blur-md px-3.5 py-1.5 rounded-xl border border-white/10 text-xs text-white flex items-center gap-2">
             <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
-            <span className="font-medium">Ảnh chụp lưu trữ gần nhất</span>
+            <span className="font-medium">Latest stored snapshot</span>
             <span className="text-white/40">•</span>
             <span className="text-white/70 font-mono text-[11px]">/api/v1/cameras/{camera.id}/snapshot</span>
           </div>
@@ -124,10 +124,11 @@ export const CameraPreviewModal: React.FC<CameraPreviewModalProps> = ({
             >
               {camera.status}
             </span>
-            {camera.latest_reading?.alert_message === "Đang chờ ảnh từ cam" ? (
+            {camera.latest_reading?.alert_message === "Đang chờ ảnh từ cam" ||
+            camera.latest_reading?.alert_message === "Waiting for camera frame" ? (
               <span className="px-2.5 py-1 rounded-full font-bold bg-slate-100 text-slate-600 border border-slate-300 flex items-center gap-1.5">
                 <Clock className="w-3.5 h-3.5 text-slate-400" />
-                Đang chờ ảnh từ cam
+                Waiting for camera frame
               </span>
             ) : camera.latest_reading ? (
               <span
@@ -139,16 +140,16 @@ export const CameraPreviewModal: React.FC<CameraPreviewModalProps> = ({
                     : "bg-emerald-50 text-emerald-600"
                 }`}
               >
-                Mức ngập: Level {camera.latest_reading.depth_level} (
+                Flood Level: Level {camera.latest_reading.depth_level} (
                 {camera.latest_reading.water_depth_cm ?? 0} cm)
               </span>
             ) : (
-              <span className="text-slate-400">Chưa có kết quả phân tích mức ngập</span>
+              <span className="text-slate-400">No flood analysis results yet</span>
             )}
           </div>
 
           <div className="text-slate-400 text-[11px]">
-            Tọa độ: {camera.latitude}, {camera.longitude}
+            Coordinates: {camera.latitude}, {camera.longitude}
           </div>
         </div>
       </div>

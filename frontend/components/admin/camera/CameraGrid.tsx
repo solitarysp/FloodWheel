@@ -45,7 +45,7 @@ export const CameraGrid: React.FC<CameraGridProps> = ({
           <div
             onClick={() => setPreviewCameraSnapshot(cam)}
             className="relative aspect-video bg-slate-950 overflow-hidden group cursor-pointer"
-            title="Nhấn để phóng to ảnh chụp"
+            title="Click to preview snapshot frame"
           >
             <img
               src={`${apiUrl}/api/v1/cameras/${cam.id}/snapshot?t=${cacheBuster}`}
@@ -53,7 +53,7 @@ export const CameraGrid: React.FC<CameraGridProps> = ({
               loading="lazy"
               onError={(e) => {
                 (e.currentTarget as HTMLImageElement).src =
-                  "data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='320' height='180' viewBox='0 0 320 180' fill='%231e293b'><rect width='320' height='180' fill='%230f172a'/><text x='50%' y='50%' fill='%2364748b' font-size='13' font-family='sans-serif' text-anchor='middle' dominant-baseline='middle'>Mất tín hiệu camera</text></svg>";
+                  "data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='320' height='180' viewBox='0 0 320 180' fill='%231e293b'><rect width='320' height='180' fill='%230f172a'/><text x='50%' y='50%' fill='%2364748b' font-size='13' font-family='sans-serif' text-anchor='middle' dominant-baseline='middle'>Camera Signal Lost</text></svg>";
               }}
               className="w-full h-full object-cover transition-transform duration-300 group-hover:scale-105"
             />
@@ -68,7 +68,7 @@ export const CameraGrid: React.FC<CameraGridProps> = ({
                 checked={selectedCameraIds.includes(cam.id)}
                 onChange={() => toggleSelectCamera(cam.id)}
                 className="w-4 h-4 rounded text-orange-600 focus:ring-orange-500 border-white/80 cursor-pointer shadow-md bg-white/95"
-                title="Chọn camera để quét hàng loạt"
+                title="Select camera for batch scan"
               />
             </div>
 
@@ -85,10 +85,11 @@ export const CameraGrid: React.FC<CameraGridProps> = ({
               >
                 {cam.status}
               </span>
-              {cam.latest_reading?.alert_message === "Đang chờ ảnh từ cam" ? (
+              {cam.latest_reading?.alert_message === "Đang chờ ảnh từ cam" ||
+              cam.latest_reading?.alert_message === "Waiting for camera frame" ? (
                 <span className="px-2 py-0.5 rounded-full font-bold text-[10px] shadow-xs backdrop-blur-xs bg-slate-900/90 text-slate-200 border border-white/20 flex items-center gap-1">
                   <Clock className="w-2.5 h-2.5 text-slate-300" />
-                  <span>Đang chờ ảnh từ cam</span>
+                  <span>Waiting for frame</span>
                 </span>
               ) : cam.latest_reading ? (
                 <span
@@ -108,11 +109,11 @@ export const CameraGrid: React.FC<CameraGridProps> = ({
             {/* Hover zoom icon */}
             <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center gap-1.5 text-white">
               <Maximize2 className="w-5 h-5 drop-shadow" />
-              <span className="text-xs font-bold drop-shadow">Phóng to ảnh</span>
+              <span className="text-xs font-bold drop-shadow">Zoom In</span>
             </div>
 
             <div className="absolute bottom-2 right-2 px-1.5 py-0.5 rounded bg-black/70 backdrop-blur-xs text-[10px] font-mono text-white/90">
-              Snapshot gần nhất
+              Latest Snapshot
             </div>
           </div>
 
@@ -129,7 +130,7 @@ export const CameraGrid: React.FC<CameraGridProps> = ({
                 <button
                   onClick={() => setPreviewCameraSnapshot(cam)}
                   className="p-1.5 text-slate-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition shrink-0"
-                  title="Xem ảnh chi tiết"
+                  title="View snapshot details"
                 >
                   <Eye className="w-4 h-4" />
                 </button>
@@ -145,7 +146,7 @@ export const CameraGrid: React.FC<CameraGridProps> = ({
                 <button
                   onClick={() => handleAnalyzeCamera(cam.id)}
                   disabled={analyzingCameraId === cam.id}
-                  title="Phân tích AI ngay cho camera này"
+                  title="Analyze this camera with AI now"
                   className={`px-2 py-1 rounded-lg text-[10px] font-bold transition flex items-center gap-1 ${
                     analyzingCameraId === cam.id
                       ? "bg-amber-100 text-amber-700"
@@ -153,7 +154,7 @@ export const CameraGrid: React.FC<CameraGridProps> = ({
                   }`}
                 >
                   <Sparkles className={`w-3 h-3 ${analyzingCameraId === cam.id ? "animate-spin" : ""}`} />
-                  <span>{analyzingCameraId === cam.id ? "Đang quét..." : "Quét AI"}</span>
+                  <span>{analyzingCameraId === cam.id ? "Scanning..." : "AI Scan"}</span>
                 </button>
 
                 {cam.status !== "ONLINE" && (
@@ -177,7 +178,7 @@ export const CameraGrid: React.FC<CameraGridProps> = ({
                     onClick={() => handleUpdateCameraStatus(cam.id, "MAINTENANCE")}
                     className="px-2 py-1 rounded-lg bg-amber-50 text-amber-700 hover:bg-amber-100 text-[10px] font-bold"
                   >
-                    Bảo Trì
+                    Maintenance
                   </button>
                 )}
               </div>
@@ -187,7 +188,7 @@ export const CameraGrid: React.FC<CameraGridProps> = ({
                   <button
                     onClick={() => handleDeleteCameraReading(cam.id, cam.name)}
                     disabled={actionLoading === `del-reading-${cam.id}`}
-                    title="Xóa kết quả phân tích AI của camera này"
+                    title="Clear AI reading for this camera"
                     className="p-1.5 text-slate-400 hover:text-amber-600 hover:bg-amber-50 rounded-lg transition"
                   >
                     <RotateCcw className="w-3.5 h-3.5" />
@@ -196,7 +197,7 @@ export const CameraGrid: React.FC<CameraGridProps> = ({
 
                 <button
                   onClick={() => handleDeleteCamera(cam.id, cam.name)}
-                  title="Xóa camera"
+                  title="Delete camera"
                   className="p-1.5 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition"
                 >
                   <Trash2 className="w-3.5 h-3.5" />

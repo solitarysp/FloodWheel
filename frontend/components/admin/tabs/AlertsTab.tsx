@@ -11,9 +11,9 @@ export const AlertsTab: React.FC<AlertsTabProps> = ({ alerts, onResolveAlert }) 
   return (
     <div className="bg-white rounded-3xl p-6 border border-slate-200/80 shadow-sm">
       <div className="mb-6">
-        <h3 className="text-base font-bold text-slate-900">Danh Sách Cảnh Báo Nguy Hiểm</h3>
+        <h3 className="text-base font-bold text-slate-900">Active High Risk Alerts</h3>
         <p className="text-xs text-slate-500 mt-0.5">
-          Các cảnh báo ngập từ Level 3 trở lên kích hoạt phát sóng Webhook và hiển thị trên bản đồ
+          Severe flood alerts from Level 3 and above trigger webhooks and live map broadcasts
         </p>
       </div>
 
@@ -36,15 +36,15 @@ export const AlertsTab: React.FC<AlertsTabProps> = ({ alerts, onResolveAlert }) 
                   <div className="flex items-center gap-2">
                     <span className="font-bold text-sm">Zone: {al.zone_id}</span>
                     <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-rose-600 text-white">
-                      Cấp {al.level}
+                      Level {al.level}
                     </span>
                     {!al.is_active && (
-                      <span className="text-[10px] text-slate-500 font-semibold">Đã Giải Quyết</span>
+                      <span className="text-[10px] text-slate-500 font-semibold">Resolved</span>
                     )}
                   </div>
                   <p className="text-xs mt-1 leading-relaxed">{al.message}</p>
                   <span className="text-[10px] text-slate-400 mt-1 block">
-                    {al.created_at ? new Date(al.created_at).toLocaleString("vi-VN") : ""}
+                    {al.created_at ? new Date(al.created_at).toLocaleString() : ""}
                   </span>
                 </div>
               </div>
@@ -54,7 +54,7 @@ export const AlertsTab: React.FC<AlertsTabProps> = ({ alerts, onResolveAlert }) 
                   onClick={() => onResolveAlert(al.id)}
                   className="px-3 py-1.5 rounded-xl bg-white text-rose-700 border border-rose-300 hover:bg-rose-100 text-xs font-bold shrink-0 transition"
                 >
-                  Đánh Dấu Đã Xử Lý
+                  Mark as Resolved
                 </button>
               )}
             </div>
@@ -62,7 +62,7 @@ export const AlertsTab: React.FC<AlertsTabProps> = ({ alerts, onResolveAlert }) 
         </div>
       ) : (
         <div className="text-center py-12 text-xs text-slate-400">
-          Hiện không có cảnh báo ngập nguy hiểm nào.
+          No active high risk flood alerts at this time.
         </div>
       )}
     </div>

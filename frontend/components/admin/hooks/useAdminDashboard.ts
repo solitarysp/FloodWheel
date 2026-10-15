@@ -20,6 +20,7 @@ export function useAdminDashboard(apiUrl: string) {
   const [isAddCameraOpen, setIsAddCameraOpen] = useState<boolean>(false);
   const [selectedZoneForOverride, setSelectedZoneForOverride] = useState<AdminZone | null>(null);
   const [isConfigModalOpen, setIsConfigModalOpen] = useState<boolean>(false);
+  const [isFakeFloodModalOpen, setIsFakeFloodModalOpen] = useState<boolean>(false);
   const [configIntervalMinutes, setConfigIntervalMinutes] = useState<number>(30);
   const [configMaxCameras, setConfigMaxCameras] = useState<number>(15);
   const [countdownSeconds, setCountdownSeconds] = useState<number>(0);
@@ -193,6 +194,8 @@ export function useAdminDashboard(apiUrl: string) {
     setSelectedZoneForOverride,
     isConfigModalOpen,
     setIsConfigModalOpen,
+    isFakeFloodModalOpen,
+    setIsFakeFloodModalOpen,
     configIntervalMinutes,
     setConfigIntervalMinutes,
     configMaxCameras,

@@ -19,10 +19,10 @@ export function useAdminCameraActions(
         body: JSON.stringify({ status: newStatus }),
       });
       if (resp.ok) {
-        showToast("success", `Đã đổi trạng thái camera ${cameraId} sang ${newStatus}.`);
+        showToast("success", `Changed status of camera ${cameraId} to ${newStatus}.`);
         await fetchDashboardData();
       } else {
-        throw new Error("Không thể cập nhật trạng thái.");
+        throw new Error("Unable to update camera status.");
       }
     } catch (err: any) {
       showToast("error", err.message);
@@ -32,7 +32,7 @@ export function useAdminCameraActions(
   };
 
   const handleDeleteCamera = async (cameraId: string, cameraName: string) => {
-    if (!confirm(`Bạn có chắc chắn muốn xóa camera "${cameraName}" (${cameraId})?`)) return;
+    if (!confirm(`Are you sure you want to delete camera "${cameraName}" (${cameraId})?`)) return;
 
     setActionLoading(`del-${cameraId}`);
     try {
@@ -40,10 +40,10 @@ export function useAdminCameraActions(
         method: "DELETE",
       });
       if (resp.ok) {
-        showToast("success", `Đã xóa camera ${cameraName} thành công.`);
+        showToast("success", `Deleted camera ${cameraName} successfully.`);
         await fetchDashboardData();
       } else {
-        throw new Error("Không thể xóa camera.");
+        throw new Error("Unable to delete camera.");
       }
     } catch (err: any) {
       showToast("error", err.message);
@@ -53,7 +53,7 @@ export function useAdminCameraActions(
   };
 
   const handleDeleteCameraReading = async (cameraId: string, cameraName?: string) => {
-    if (!confirm(`Bạn có chắc chắn muốn xóa kết quả phân tích AI của camera "${cameraName || cameraId}"?`)) return;
+    if (!confirm(`Are you sure you want to delete AI analysis reading for camera "${cameraName || cameraId}"?`)) return;
 
     setActionLoading(`del-reading-${cameraId}`);
     try {
@@ -61,10 +61,10 @@ export function useAdminCameraActions(
         method: "DELETE",
       });
       if (resp.ok) {
-        showToast("success", `Đã xóa kết quả phân tích AI của camera ${cameraName || cameraId}.`);
+        showToast("success", `Deleted AI analysis reading for camera ${cameraName || cameraId}.`);
         await fetchDashboardData();
       } else {
-        throw new Error("Không thể xóa kết quả phân tích.");
+        throw new Error("Unable to delete analysis reading.");
       }
     } catch (err: any) {
       showToast("error", err.message);
@@ -76,7 +76,7 @@ export function useAdminCameraActions(
   const handleClearAllReadings = async () => {
     if (
       !confirm(
-        "CẢNH BÁO: Bạn có chắc chắn muốn xóa TOÀN BỘ kết quả phân tích AI và đặt lại các khu vực về trạng thái bình thường (Level 0)?"
+        "WARNING: Are you sure you want to delete ALL AI analysis readings and reset all zones to normal (Level 0)?"
       )
     )
       return;
@@ -88,10 +88,10 @@ export function useAdminCameraActions(
       });
       if (resp.ok) {
         const data = await resp.json();
-        showToast("success", data.message || "Đã xóa toàn bộ kết quả phân tích AI thành công!");
+        showToast("success", data.message || "Deleted all AI analysis readings successfully!");
         await fetchDashboardData();
       } else {
-        throw new Error("Không thể xóa toàn bộ kết quả phân tích.");
+        throw new Error("Unable to delete all analysis readings.");
       }
     } catch (err: any) {
       showToast("error", err.message);
@@ -110,17 +110,17 @@ export function useAdminCameraActions(
       const data = await resp.json();
       if (resp.ok) {
         if (data.skipped) {
-          showToast("success", `Camera ${cameraId}: Đang chờ ảnh từ cam (ảnh mock, bỏ qua AI)`);
+          showToast("success", `Camera ${cameraId}: Waiting for frame (mock frame, skipped AI)`);
         } else {
           showToast(
             "success",
-            `Phân tích hoàn tất ${cameraId}: Mức ${data.depth_level ?? 0} (${data.depth_cm_max || 0} cm)`
+            `Analysis completed for ${cameraId}: Level ${data.depth_level ?? 0} (${data.depth_cm_max || 0} cm)`
           );
         }
         setCacheBuster(Date.now());
         await fetchDashboardData();
       } else {
-        throw new Error(data.detail || "Lỗi khi phân tích camera.");
+        throw new Error(data.detail || "Error analyzing camera.");
       }
     } catch (err: any) {
       showToast("error", err.message);
@@ -131,7 +131,7 @@ export function useAdminCameraActions(
 
   const handleBatchAnalyze = async (idsToAnalyze: string[]) => {
     if (idsToAnalyze.length === 0) {
-      showToast("error", "Vui lòng chọn ít nhất 1 camera để phân tích AI.");
+      showToast("error", "Please select at least 1 camera for AI analysis.");
       return;
     }
 
@@ -149,18 +149,45 @@ export function useAdminCameraActions(
       if (resp.ok) {
         showToast(
           "success",
-          `Hoàn tất quét ${idsToAnalyze.length} camera: ${data.analyzed_count} thành công, ${data.skipped_count} chờ ảnh thật, ${data.error_count} lỗi.`
+          `Completed scan for ${idsToAnalyze.length} cameras: ${data.analyzed_count} success, ${data.skipped_count} waiting for live feed, ${data.error_count} failed.`
         );
         setSelectedCameraIds([]);
         setCacheBuster(Date.now());
         await fetchDashboardData();
       } else {
-        throw new Error(data.detail || "Lỗi khi phân tích hàng loạt.");
+        throw new Error(data.detail || "Error during batch analysis.");
       }
     } catch (err: any) {
       showToast("error", err.message);
     } finally {
       setIsBatchAnalyzing(false);
+    }
+  };
+
+  const handleFakeRandomFlood = async (floodedCount?: number, dryCount?: number) => {
+    setActionLoading("fake-random-flood");
+    try {
+      const payload: Record<string, number> = {};
+      if (typeof floodedCount === "number") payload.flooded_count = floodedCount;
+      if (typeof dryCount === "number") payload.dry_count = dryCount;
+
+      const resp = await adminFetch(`${apiUrl}/api/v1/admin/test/fake-random-flood`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: Object.keys(payload).length > 0 ? JSON.stringify(payload) : undefined,
+      });
+      const data = await resp.json();
+      if (resp.ok) {
+        showToast("success", data.message || "Generated random flood alerts successfully!");
+        setCacheBuster(Date.now());
+        await fetchDashboardData();
+      } else {
+        throw new Error(data.detail || "Unable to generate simulation data.");
+      }
+    } catch (err: any) {
+      showToast("error", err.message);
+    } finally {
+      setActionLoading(null);
     }
   };
 
@@ -171,5 +198,6 @@ export function useAdminCameraActions(
     handleClearAllReadings,
     handleAnalyzeCamera,
     handleBatchAnalyze,
+    handleFakeRandomFlood,
   };
 }

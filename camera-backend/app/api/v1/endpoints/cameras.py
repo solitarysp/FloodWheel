@@ -1,13 +1,33 @@
 """Camera query and snapshot proxy endpoints."""
 
 from typing import Optional
-from fastapi import APIRouter, Depends, HTTPException, Query, Response, status
+from fastapi import APIRouter, Depends, HTTPException, Query, Request, Response, status
 
 from app.api.deps import get_catalog_service
 from app.models.camera import CameraDTO, CameraFilterQuery, CameraListResponse
 from app.services.catalog_service import CatalogService
 
 router = APIRouter(prefix="/cameras", tags=["Cameras"])
+
+
+@router.get("/crawler/status")
+async def get_crawler_status(request: Request):
+    """Returns telemetry of the periodic snapshot crawler worker."""
+    crawler = getattr(request.app.state, "snapshot_crawler", None)
+    if not crawler:
+        return {"status": "NOT_INITIALIZED", "enabled": False}
+    return crawler.get_telemetry()
+
+
+@router.post("/crawler/run")
+async def trigger_crawler_cycle(request: Request):
+    """Triggers an immediate snapshot crawl cycle in background."""
+    crawler = getattr(request.app.state, "snapshot_crawler", None)
+    if not crawler:
+        raise HTTPException(status_code=500, detail="Snapshot crawler is not initialized.")
+    import asyncio
+    asyncio.create_task(crawler.run_crawl_cycle())
+    return {"message": "Snapshot crawl cycle dispatched.", "status": "RUNNING"}
 
 
 @router.get("", response_model=CameraListResponse)

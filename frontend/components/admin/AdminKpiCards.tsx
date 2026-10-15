@@ -39,7 +39,7 @@ export const AdminKpiCards: React.FC<AdminKpiCardsProps> = ({
       {/* Card 1: Cameras */}
       <div className="bg-white rounded-3xl p-5 border border-slate-200/80 shadow-sm">
         <div className="flex items-center justify-between text-slate-500 mb-2">
-          <span className="text-xs font-semibold uppercase tracking-wider">Tổng Camera</span>
+          <span className="text-xs font-semibold uppercase tracking-wider">Total Cameras</span>
           <Camera className="w-4 h-4 text-blue-500" />
         </div>
         <div className="text-2xl font-black text-slate-900">
@@ -55,7 +55,7 @@ export const AdminKpiCards: React.FC<AdminKpiCardsProps> = ({
       {/* Card 2: AI Queue */}
       <div className="bg-white rounded-3xl p-5 border border-slate-200/80 shadow-sm">
         <div className="flex items-center justify-between text-slate-500 mb-2">
-          <span className="text-xs font-semibold uppercase tracking-wider">Hàng Đợi AI</span>
+          <span className="text-xs font-semibold uppercase tracking-wider">AI Queue</span>
           <Radio className="w-4 h-4 text-emerald-500" />
         </div>
         <div className="flex items-center gap-2">
@@ -74,35 +74,35 @@ export const AdminKpiCards: React.FC<AdminKpiCardsProps> = ({
         </div>
         <div className="mt-2 text-xs text-slate-500 truncate">
           {overview?.queue?.next_run_in_seconds
-            ? `Đợt tiếp theo: sau ${Math.round(overview.queue.next_run_in_seconds / 60)}p`
-            : "Sẵn sàng quét"}
+            ? `Next cycle: in ${Math.round(overview.queue.next_run_in_seconds / 60)}m`
+            : "Ready to scan"}
         </div>
       </div>
 
       {/* Card 3: Zone Overrides */}
       <div className="bg-white rounded-3xl p-5 border border-slate-200/80 shadow-sm">
         <div className="flex items-center justify-between text-slate-500 mb-2">
-          <span className="text-xs font-semibold uppercase tracking-wider">Ghi Đè Thủ Công</span>
+          <span className="text-xs font-semibold uppercase tracking-wider">Manual Overrides</span>
           <ShieldAlert className="w-4 h-4 text-amber-500" />
         </div>
         <div className="text-2xl font-black text-slate-900">
           {overview?.zones?.overridden || overriddenZonesCount}
         </div>
         <div className="mt-2 text-xs text-slate-500">
-          trên tổng số {overview?.zones?.total || totalZones} khu vực
+          out of {overview?.zones?.total || totalZones} total zones
         </div>
       </div>
 
       {/* Card 4: Alerts */}
       <div className="bg-white rounded-3xl p-5 border border-slate-200/80 shadow-sm">
         <div className="flex items-center justify-between text-slate-500 mb-2">
-          <span className="text-xs font-semibold uppercase tracking-wider">Cảnh Báo Nguy Hiểm</span>
+          <span className="text-xs font-semibold uppercase tracking-wider">Active Alerts</span>
           <AlertTriangle className="w-4 h-4 text-rose-500" />
         </div>
         <div className="text-2xl font-black text-rose-600">
           {overview?.alerts?.active_count || totalAlerts}
         </div>
-        <div className="mt-2 text-xs text-slate-500">cảnh báo đang kích hoạt</div>
+        <div className="mt-2 text-xs text-slate-500">currently triggered</div>
       </div>
     </div>
   );

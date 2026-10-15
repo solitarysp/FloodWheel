@@ -84,7 +84,7 @@ export const CamerasTab: React.FC<CamerasTabProps> = ({
           <div className="flex items-center gap-2 text-amber-900 font-semibold">
             <span className="w-2 h-2 rounded-full bg-amber-500 animate-ping" />
             <span>
-              Đang chọn <strong className="text-orange-600 font-bold">{selectedCameraIds.length}</strong> camera để thao tác phân tích AI
+              Selected <strong className="text-orange-600 font-bold">{selectedCameraIds.length}</strong> cameras for batch AI analysis
             </span>
           </div>
           <div className="flex items-center gap-2">
@@ -94,13 +94,13 @@ export const CamerasTab: React.FC<CamerasTabProps> = ({
               className="px-3 py-1.5 rounded-xl bg-gradient-to-r from-amber-500 to-rose-500 hover:from-amber-600 hover:to-rose-600 text-white font-bold shadow-xs transition flex items-center gap-1.5"
             >
               <Sparkles className={`w-3.5 h-3.5 ${isBatchAnalyzing ? "animate-spin" : ""}`} />
-              <span>{isBatchAnalyzing ? "Đang xử lý..." : `🔥 Bắt Đầu Phân Tích (${selectedCameraIds.length})`}</span>
+              <span>{isBatchAnalyzing ? "Processing..." : `🔥 Run AI Scan (${selectedCameraIds.length})`}</span>
             </button>
             <button
               onClick={onSelectNone}
               className="px-2.5 py-1.5 rounded-xl bg-white text-slate-600 hover:bg-slate-100 border border-slate-200 transition font-medium text-[11px]"
             >
-              Bỏ chọn
+              Deselect All
             </button>
           </div>
         </div>
@@ -109,7 +109,7 @@ export const CamerasTab: React.FC<CamerasTabProps> = ({
       {/* Camera List or Grid */}
       {filteredCameras.length === 0 ? (
         <div className="text-center py-12 text-xs text-slate-400">
-          Không tìm thấy camera nào phù hợp với bộ lọc.
+          No cameras match the current filter.
         </div>
       ) : cameraViewMode === "table" ? (
         <CameraTable

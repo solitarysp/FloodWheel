@@ -48,16 +48,16 @@ export const QueueTaskDetailModal: React.FC<QueueTaskDetailModalProps> = ({
                 </span>
                 <span className="text-[11px] font-semibold text-slate-500">
                   {task.task_type === "cycle_camera"
-                    ? `Chu kỳ tự động #${task.cycle_id || 1}`
+                    ? `Auto Cycle #${task.cycle_id || 1}`
                     : task.task_type === "single_camera"
-                    ? "Quét trực tiếp camera"
+                    ? "Direct Camera Scan"
                     : task.task_type === "image_upload"
-                    ? "Tải ảnh Demo"
-                    : "Quét hàng loạt"}
+                    ? "Demo Upload"
+                    : "Batch Camera Scan"}
                 </span>
               </div>
               <h3 className="text-base font-black text-slate-900 mt-0.5">
-                Chi Tiết Lệnh Gọi AI: {task.camera_name || task.camera_id || "Khung hình"}
+                AI Task Details: {task.camera_name || task.camera_id || "Frame"}
               </h3>
             </div>
           </div>
@@ -73,23 +73,23 @@ export const QueueTaskDetailModal: React.FC<QueueTaskDetailModalProps> = ({
         <div className="p-6 overflow-y-auto space-y-6">
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
             <div className="p-3.5 rounded-2xl bg-slate-50 border border-slate-200/70">
-              <span className="text-[10px] uppercase font-bold text-slate-400 block tracking-wider">Chờ Queue</span>
+              <span className="text-[10px] uppercase font-bold text-slate-400 block tracking-wider">Queue Wait</span>
               <div className="text-lg font-black text-slate-800 mt-0.5">
                 {task.queue_wait_ms !== null && task.queue_wait_ms !== undefined ? `${task.queue_wait_ms} ms` : "0 ms"}
               </div>
-              <span className="text-[10px] text-slate-400 block">Thời gian xếp hàng</span>
+              <span className="text-[10px] text-slate-400 block">Queue latency</span>
             </div>
 
             <div className="p-3.5 rounded-2xl bg-indigo-50 border border-indigo-100">
-              <span className="text-[10px] uppercase font-bold text-indigo-600 block tracking-wider">Độ Trễ AI</span>
+              <span className="text-[10px] uppercase font-bold text-indigo-600 block tracking-wider">AI Latency</span>
               <div className="text-lg font-black text-indigo-700 mt-0.5">
                 {task.inference_time_ms !== null && task.inference_time_ms !== undefined ? `${task.inference_time_ms} ms` : "0 ms"}
               </div>
-              <span className="text-[10px] text-indigo-500 block">Thời gian Gemini suy luận</span>
+              <span className="text-[10px] text-indigo-500 block">Gemini inference time</span>
             </div>
 
             <div className="p-3.5 rounded-2xl bg-slate-50 border border-slate-200/70">
-              <span className="text-[10px] uppercase font-bold text-slate-400 block tracking-wider">Tổng Xử Lý</span>
+              <span className="text-[10px] uppercase font-bold text-slate-400 block tracking-wider">Total Duration</span>
               <div className="text-lg font-black text-slate-800 mt-0.5">
                 {task.duration_ms !== null && task.duration_ms !== undefined ? `${task.duration_ms} ms` : "0 ms"}
               </div>
@@ -117,7 +117,7 @@ export const QueueTaskDetailModal: React.FC<QueueTaskDetailModalProps> = ({
             onClick={onClose}
             className="px-5 py-2 rounded-xl bg-slate-900 hover:bg-slate-800 text-white text-xs font-bold transition shadow-sm"
           >
-            Đóng Chi Tiết
+            Close Details
           </button>
         </div>
       </div>

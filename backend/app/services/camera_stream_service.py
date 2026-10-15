@@ -149,15 +149,15 @@ class CameraStreamService:
         camera_id: str = "",
         camera_name: str = "",
         force_refresh: bool = False,
-    ) -> Tuple[bytes, str]:
+        storage_only: bool = False,
+    ) -> Tuple[Optional[bytes], str]:
         """Fetches raw snapshot frame bytes and MIME type.
 
         Resolution hierarchy:
-        1. In-memory cache (if valid real snapshot and not force refreshing)
-        2. Dedicated camera-backend microservice (live HCMC scrapers with .VDMS cookies)
-        3. Local persistent disk storage (last-known-good historical frame, e.g. 56de42f611f398ec0c481299.jpg)
-        4. Direct public stream URL (if valid http/https)
-        5. Realistic synthetic fallback frame (only if all sources unavailable)
+        - If storage_only=True: strictly checks local persistent disk storage (or cache)
+          and NEVER performs outbound network calls. Returns (None, "") if unavailable.
+        - Otherwise: checks cache, camera-backend, persistent disk storage, public stream URL,
+          and synthetic mock frame fallback.
         """
         from app.services.image_validator import ImageValidator
         now = time.time()
@@ -169,7 +169,19 @@ class CameraStreamService:
                 if ImageValidator.is_valid_real_snapshot(cached_bytes):
                     return cached_bytes, cached_mime
 
-        # 2. Try camera-backend microservice
+        # 2. Check local persistent disk storage (e.g. storage/snapshots/{camera_id}.jpg)
+        if camera_id:
+            disk_bytes = cls.get_stored_disk_snapshot(camera_id)
+            if disk_bytes and ImageValidator.is_valid_real_snapshot(disk_bytes):
+                cls._cache[camera_id] = (disk_bytes, "image/jpeg", now)
+                return disk_bytes, "image/jpeg"
+
+        # If caller requested storage_only (e.g. backend AI analysis cycle), exit cleanly without network
+        if storage_only:
+            logger.info("Storage-only mode: no disk snapshot found for camera %s. Skipping outbound fetch.", camera_id)
+            return None, ""
+
+        # 3. Try camera-backend microservice (live on-demand request)
         if camera_id:
             try:
                 from app.services.camera_service_client import camera_service_client
@@ -183,13 +195,6 @@ class CameraStreamService:
                     return remote_bytes, remote_mime
             except Exception as exc:
                 logger.debug("camera_service_client query failed for %s: %s", camera_id, exc)
-
-        # 3. Check local persistent disk storage (e.g. storage/snapshots/{camera_id}.jpg)
-        if camera_id:
-            disk_bytes = cls.get_stored_disk_snapshot(camera_id)
-            if disk_bytes and ImageValidator.is_valid_real_snapshot(disk_bytes):
-                cls._cache[camera_id] = (disk_bytes, "image/jpeg", now)
-                return disk_bytes, "image/jpeg"
 
         # 4. Attempt to fetch live frame from public stream URL (if valid external URL)
         if stream_url:

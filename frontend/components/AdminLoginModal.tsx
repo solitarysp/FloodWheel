@@ -1,5 +1,5 @@
 import React, { useState } from "react";
-import { ShieldCheck, Lock, User, X, AlertCircle, KeyRound, CheckCircle2 } from "lucide-react";
+import { ShieldCheck, Lock, User, X, AlertCircle, CheckCircle2 } from "lucide-react";
 import { setAdminAuth } from "../lib/auth";
 
 interface AdminLoginModalProps {
@@ -13,8 +13,8 @@ export const AdminLoginModal: React.FC<AdminLoginModalProps> = ({
   onClose,
   onSuccess,
 }) => {
-  const [username, setUsername] = useState<string>("admin");
-  const [password, setPassword] = useState<string>("admin123");
+  const [username, setUsername] = useState<string>("");
+  const [password, setPassword] = useState<string>("");
   const [loading, setLoading] = useState<boolean>(false);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<boolean>(false);
@@ -41,7 +41,7 @@ export const AdminLoginModal: React.FC<AdminLoginModalProps> = ({
       const data = await resp.json();
 
       if (!resp.ok) {
-        throw new Error(data.detail || "Đăng nhập thất bại. Vui lòng kiểm tra lại thông tin.");
+        throw new Error(data.detail || "Login failed. Please check your credentials.");
       }
 
       // Save token & user to localStorage
@@ -54,7 +54,7 @@ export const AdminLoginModal: React.FC<AdminLoginModalProps> = ({
         onClose();
       }, 700);
     } catch (err: any) {
-      setError(err.message || "Không thể kết nối đến máy chủ.");
+      setError(err.message || "Unable to connect to server.");
     } finally {
       setLoading(false);
     }
@@ -70,24 +70,13 @@ export const AdminLoginModal: React.FC<AdminLoginModalProps> = ({
           <X className="w-5 h-5" />
         </button>
 
-        <div className="flex items-center gap-3 mb-2">
+        <div className="flex items-center gap-3 mb-6">
           <div className="w-10 h-10 rounded-2xl bg-indigo-50 border border-indigo-100 flex items-center justify-center text-indigo-600 shadow-sm">
             <ShieldCheck className="w-6 h-6" />
           </div>
           <div>
-            <h3 className="text-lg font-bold text-slate-900">Đăng Nhập Quản Trị</h3>
-            <p className="text-xs text-slate-500">Khu vực dành riêng cho quản trị viên hệ thống</p>
-          </div>
-        </div>
-
-        {/* Default credentials hint */}
-        <div className="mt-4 mb-5 p-3 rounded-2xl bg-slate-50 border border-slate-200/80 text-xs text-slate-600 flex items-start gap-2.5">
-          <KeyRound className="w-4 h-4 text-indigo-500 shrink-0 mt-0.5" />
-          <div>
-            <span className="font-semibold text-slate-800">Tài khoản mặc định:</span>
-            <div className="mt-0.5 text-slate-500">
-              User: <code className="bg-white px-1.5 py-0.5 rounded border border-slate-200 font-mono text-indigo-600">admin</code> &bull; Pass: <code className="bg-white px-1.5 py-0.5 rounded border border-slate-200 font-mono text-indigo-600">admin123</code>
-            </div>
+            <h3 className="text-lg font-bold text-slate-900">Admin Login</h3>
+            <p className="text-xs text-slate-500">Authorized personnel only</p>
           </div>
         </div>
 
@@ -101,14 +90,14 @@ export const AdminLoginModal: React.FC<AdminLoginModalProps> = ({
         {success && (
           <div className="mb-4 p-3 rounded-2xl bg-emerald-50 border border-emerald-100 text-xs text-emerald-700 flex items-center gap-2">
             <CheckCircle2 className="w-4 h-4 shrink-0 text-emerald-500" />
-            <span>Đăng nhập thành công! Đang chuyển hướng...</span>
+            <span>Login successful! Redirecting...</span>
           </div>
         )}
 
         <form onSubmit={handleSubmit} className="space-y-4">
           <div>
             <label className="block text-xs font-semibold text-slate-700 uppercase tracking-wider mb-1.5">
-              Tên Đăng Nhập
+              Username
             </label>
             <div className="relative">
               <User className="w-4 h-4 text-slate-400 absolute left-3.5 top-3" />
@@ -116,7 +105,7 @@ export const AdminLoginModal: React.FC<AdminLoginModalProps> = ({
                 type="text"
                 value={username}
                 onChange={(e) => setUsername(e.target.value)}
-                placeholder="admin"
+                placeholder="Enter username"
                 required
                 className="w-full pl-10 pr-3.5 py-2.5 rounded-xl border border-slate-300 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 font-medium"
               />
@@ -125,7 +114,7 @@ export const AdminLoginModal: React.FC<AdminLoginModalProps> = ({
 
           <div>
             <label className="block text-xs font-semibold text-slate-700 uppercase tracking-wider mb-1.5">
-              Mật Khẩu
+              Password
             </label>
             <div className="relative">
               <Lock className="w-4 h-4 text-slate-400 absolute left-3.5 top-3" />
@@ -133,7 +122,7 @@ export const AdminLoginModal: React.FC<AdminLoginModalProps> = ({
                 type="password"
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
-                placeholder="••••••••"
+                placeholder="Enter password"
                 required
                 className="w-full pl-10 pr-3.5 py-2.5 rounded-xl border border-slate-300 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 font-medium"
               />
@@ -149,12 +138,12 @@ export const AdminLoginModal: React.FC<AdminLoginModalProps> = ({
               {loading ? (
                 <>
                   <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
-                  <span>Đang xác thực...</span>
+                  <span>Authenticating...</span>
                 </>
               ) : success ? (
-                <span>Đã Đăng Nhập ✓</span>
+                <span>Logged In ✓</span>
               ) : (
-                <span>Đăng Nhập Quản Trị</span>
+                <span>Sign In to Admin</span>
               )}
             </button>
           </div>

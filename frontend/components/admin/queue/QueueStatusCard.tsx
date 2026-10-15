@@ -32,11 +32,11 @@ export const QueueStatusCard: React.FC<QueueStatusCardProps> = ({
             <span className="w-3 h-3 rounded-full bg-blue-400 animate-ping" />
             <h4 className="text-base font-black tracking-wide flex items-center gap-2">
               <Sparkles className="w-4 h-4 text-blue-400" />
-              Đang Phân Tích Chu Kỳ AI #{ (overview?.queue as any)?.current_cycle_id || 1}
+              AI Analyzing Cycle #{ (overview?.queue as any)?.current_cycle_id || 1}
             </h4>
           </div>
           <div className="text-xs font-mono text-blue-300">
-            {processed} / {total} Camera ({percent}%)
+            {processed} / {total} Cameras ({percent}%)
           </div>
         </div>
 
@@ -49,30 +49,30 @@ export const QueueStatusCard: React.FC<QueueStatusCardProps> = ({
 
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 text-xs">
           <div className="p-3 rounded-2xl bg-white/5 border border-white/10">
-            <span className="text-[10px] uppercase font-semibold text-slate-300 block">Đang Xử Lý</span>
+            <span className="text-[10px] uppercase font-semibold text-slate-300 block">Processing</span>
             <span className="font-bold text-blue-200 truncate block mt-0.5">
-              {(overview?.queue as any)?.current_camera_name || (overview?.queue as any)?.current_camera_id || "Đang tải ảnh..."}
+              {(overview?.queue as any)?.current_camera_name || (overview?.queue as any)?.current_camera_id || "Loading image..."}
             </span>
           </div>
           <div className="p-3 rounded-2xl bg-white/5 border border-white/10">
-            <span className="text-[10px] uppercase font-semibold text-slate-300 block">Thành Công</span>
+            <span className="text-[10px] uppercase font-semibold text-slate-300 block">Success</span>
             <span className="text-xl font-black text-emerald-400">
               {cycleProgress?.success || 0}
             </span>
           </div>
           <div className="p-3 rounded-2xl bg-white/5 border border-white/10">
-            <span className="text-[10px] uppercase font-semibold text-slate-300 block">Điểm Ngập Nước</span>
+            <span className="text-[10px] uppercase font-semibold text-slate-300 block">Flooded Points</span>
             <span className="text-xl font-black text-rose-400">
               {cycleProgress?.flooded || 0}
             </span>
           </div>
           <div className="p-3 rounded-2xl bg-white/5 border border-white/10">
-            <span className="text-[10px] uppercase font-semibold text-slate-300 block">Bỏ Qua / Lỗi</span>
+            <span className="text-[10px] uppercase font-semibold text-slate-300 block">Skipped / Failed</span>
             <span className="text-xl font-black text-amber-300">
               {(cycleProgress?.skipped || 0) + (cycleProgress?.failed || 0)}
             </span>
             <span className="text-[10px] text-slate-300/80 block">
-              {cycleProgress?.skipped || 0} skip • {cycleProgress?.failed || 0} lỗi
+              {cycleProgress?.skipped || 0} skipped • {cycleProgress?.failed || 0} failed
             </span>
           </div>
         </div>
@@ -88,9 +88,9 @@ export const QueueStatusCard: React.FC<QueueStatusCardProps> = ({
             <Pause className="w-5 h-5" />
           </div>
           <div>
-            <h4 className="text-base font-black text-amber-950">Hàng Đợi AI Đang Tạm Dừng</h4>
+            <h4 className="text-base font-black text-amber-950">AI Queue Paused</h4>
             <p className="text-xs text-amber-800 mt-0.5">
-              Chu kỳ quét tự động mỗi {overview?.queue?.interval_minutes || 30} phút đang tạm ngừng. Nhấn Tiếp Tục để kích hoạt lại.
+              Automatic scanning every {overview?.queue?.interval_minutes || 30} minutes is paused. Click Resume to re-enable.
             </p>
           </div>
         </div>
@@ -100,7 +100,7 @@ export const QueueStatusCard: React.FC<QueueStatusCardProps> = ({
           className="px-4 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold transition flex items-center gap-1.5 shadow-sm"
         >
           <Play className="w-3.5 h-3.5" />
-          <span>Tiếp Tục Chạy Hàng Đợi</span>
+          <span>Resume Queue</span>
         </button>
       </div>
     );
@@ -114,9 +114,9 @@ export const QueueStatusCard: React.FC<QueueStatusCardProps> = ({
             <AlertTriangle className="w-5 h-5" />
           </div>
           <div>
-            <h4 className="text-base font-black text-rose-950">Hàng Đợi Gặp Sự Cố</h4>
+            <h4 className="text-base font-black text-rose-950">Queue Encountered an Error</h4>
             <p className="text-xs text-rose-700 mt-0.5">
-              Hệ thống đã tự phục hồi về trạng thái an toàn. Bạn có thể kích hoạt lại chu kỳ quét bất kỳ lúc nào.
+              The system recovered to a safe state. You can restart the scan cycle at any time.
             </p>
           </div>
         </div>
@@ -126,7 +126,7 @@ export const QueueStatusCard: React.FC<QueueStatusCardProps> = ({
           className="px-4 py-2.5 rounded-xl bg-rose-600 hover:bg-rose-700 text-white text-xs font-bold transition flex items-center gap-1.5 shadow-sm"
         >
           <RefreshCw className="w-3.5 h-3.5" />
-          <span>Khởi Động Lại Ngay</span>
+          <span>Restart Now</span>
         </button>
       </div>
     );
@@ -144,18 +144,18 @@ export const QueueStatusCard: React.FC<QueueStatusCardProps> = ({
           </div>
           <div>
             <span className="text-[10px] uppercase font-bold text-indigo-600 tracking-wider block">
-              Đợt Quét Tiếp Theo (Countdown)
+              Next AI Scan Cycle (Countdown)
             </span>
             <div className="text-3xl font-black text-slate-900 font-mono tracking-tight mt-0.5">
               {String(Math.floor(countdownSeconds / 60)).padStart(2, "0")}:
               {String(countdownSeconds % 60).padStart(2, "0")}
             </div>
             <span className="text-xs text-slate-500 mt-0.5 block">
-              Dự kiến lúc:{" "}
+              Scheduled at:{" "}
               <strong className="text-slate-800">
                 {(overview?.queue as any)?.next_run_at
-                  ? new Date((overview?.queue as any).next_run_at).toLocaleTimeString("vi-VN")
-                  : "Sẵn sàng quét"}
+                  ? new Date((overview?.queue as any).next_run_at).toLocaleTimeString()
+                  : "Ready to scan"}
               </strong>
             </span>
           </div>
@@ -163,39 +163,39 @@ export const QueueStatusCard: React.FC<QueueStatusCardProps> = ({
 
         <div className="lg:col-span-7 grid grid-cols-2 sm:grid-cols-4 gap-3">
           <div className="p-3.5 rounded-2xl bg-slate-50 border border-slate-200/60">
-            <span className="text-[10px] uppercase font-semibold text-slate-400 block">Thời Lượng Chạy</span>
+            <span className="text-[10px] uppercase font-semibold text-slate-400 block">Duration</span>
             <div className="text-lg font-black text-slate-800 mt-0.5">
               {lastSummary?.duration_seconds !== undefined ? `${lastSummary.duration_seconds}s` : "N/A"}
             </div>
             <span className="text-[10px] text-slate-400 block">
-              Đợt #{lastSummary?.cycle_id || (overview?.queue as any)?.current_cycle_id || 0}
+              Cycle #{lastSummary?.cycle_id || (overview?.queue as any)?.current_cycle_id || 0}
             </span>
           </div>
 
           <div className="p-3.5 rounded-2xl bg-slate-50 border border-slate-200/60">
-            <span className="text-[10px] uppercase font-semibold text-slate-400 block">Số Camera Quét</span>
+            <span className="text-[10px] uppercase font-semibold text-slate-400 block">Cameras Scanned</span>
             <div className="text-lg font-black text-slate-800 mt-0.5">
               {lastSummary?.total_cameras || 0}
             </div>
             <span className="text-[10px] text-slate-400 block">
-              {lastSummary?.successful || 0} thành công
+              {lastSummary?.successful || 0} success
             </span>
           </div>
 
           <div className="p-3.5 rounded-2xl bg-slate-50 border border-slate-200/60">
-            <span className="text-[10px] uppercase font-semibold text-rose-500 block">Phát Hiện Ngập</span>
+            <span className="text-[10px] uppercase font-semibold text-rose-500 block">Flooded Points</span>
             <div className="text-lg font-black text-rose-600 mt-0.5">
               {lastSummary?.flooded_count || 0}
             </div>
-            <span className="text-[10px] text-rose-400 block">vùng ngập</span>
+            <span className="text-[10px] text-rose-400 block">flood zones</span>
           </div>
 
           <div className="p-3.5 rounded-2xl bg-slate-50 border border-slate-200/60">
-            <span className="text-[10px] uppercase font-semibold text-blue-500 block">Mức Ngập Cao Nhất</span>
+            <span className="text-[10px] uppercase font-semibold text-blue-500 block">Max Flood Depth</span>
             <div className="text-lg font-black text-blue-600 mt-0.5">
               {lastSummary?.max_depth_cm || 0} cm
             </div>
-            <span className="text-[10px] text-blue-400 block">ước tính AI</span>
+            <span className="text-[10px] text-blue-400 block">AI estimate</span>
           </div>
         </div>
       </div>

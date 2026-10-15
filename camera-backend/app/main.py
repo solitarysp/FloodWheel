@@ -46,17 +46,31 @@ async def lifespan(app: FastAPI):
     # 4. Start periodic background sync worker
     catalog_service.start_background_sync(settings.CATALOG_SYNC_INTERVAL_SECONDS)
 
-    # 5. Store singletons in app state
+    # 5. Start periodic snapshot crawler worker (every 10 minutes)
+    from app.services.snapshot_crawler import SnapshotCrawlerService
+    snapshot_crawler = SnapshotCrawlerService(
+        catalog_service=catalog_service,
+        storage_service=storage_service,
+        cache_service=cache_service,
+        interval_seconds=settings.SNAPSHOT_CRAWL_INTERVAL_SECONDS,
+        concurrency=settings.SNAPSHOT_CRAWL_CONCURRENCY,
+        delay_seconds=settings.SNAPSHOT_CRAWL_DELAY_SECONDS,
+    )
+    snapshot_crawler.start()
+
+    # 6. Store singletons in app state
     app.state.storage_service = storage_service
     app.state.cache_service = cache_service
     app.state.catalog_service = catalog_service
     app.state.hcmc_provider = hcmc_provider
+    app.state.snapshot_crawler = snapshot_crawler
 
     logger.info("%s ready to serve traffic!", settings.PROJECT_NAME)
     yield
 
     # Clean shutdown
     logger.info("Shutting down %s...", settings.PROJECT_NAME)
+    snapshot_crawler.stop()
     catalog_service.stop_background_sync()
     await hcmc_provider.close()
     await cache_service.close()

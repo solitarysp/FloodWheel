@@ -87,4 +87,19 @@ class FloodReadingParser:
         data["reasoning"] = str(data.get("reasoning", "No visual reasoning provided."))[:1000]
         data["alert_message"] = str(data.get("alert_message", "No active alert advisory."))[:300]
 
+        # Consistency guard: If flood not detected or depth is Level 0, zero out cm estimates
+        if not data.get("flood_detected", False) or data.get("depth_level") == 0:
+            data["flood_detected"] = False
+            data["depth_level"] = 0
+            data["depth_estimate_cm_min"] = 0
+            data["depth_estimate_cm_max"] = 0
+
+        # Guard against weak confidence false positives without visual landmarks
+        if data.get("flood_detected") and data.get("confidence_score", 0.0) < 0.35 and not data.get("reference_objects_used"):
+            data["flood_detected"] = False
+            data["depth_level"] = 0
+            data["depth_estimate_cm_min"] = 0
+            data["depth_estimate_cm_max"] = 0
+            data["reasoning"] += " (Filtered out: low confidence without visual landmark proof)."
+
         return FloodReading.model_validate(data)

@@ -85,25 +85,8 @@ export const Navbar: React.FC = () => {
               <span>Live Cameras</span>
             </Link>
 
-            <Link
-              href="/demo"
-              className={`hover:text-blue-600 transition flex items-center gap-1.5 ${
-                router.pathname === "/demo" ? "text-blue-600 font-semibold" : ""
-              }`}
-            >
-              <UploadCloud className="w-4 h-4" />
-              <span>Gemini Demo</span>
-            </Link>
 
-            <Link
-              href="/dashboard"
-              className={`hover:text-blue-600 transition flex items-center gap-1.5 ${
-                router.pathname === "/dashboard" ? "text-emerald-600 font-semibold" : ""
-              }`}
-            >
-              <Radio className="w-4 h-4 text-emerald-500" />
-              <span>Dashboard</span>
-            </Link>
+
 
             <a
               href="http://localhost:8000/docs"
@@ -133,7 +116,7 @@ export const Navbar: React.FC = () => {
 
                   <button
                     onClick={handleLogout}
-                    title="Đăng xuất quản trị"
+                    title="Admin Logout"
                     className="p-1.5 rounded-xl text-slate-400 hover:text-rose-600 hover:bg-rose-50 transition"
                   >
                     <LogOut className="w-4 h-4" />

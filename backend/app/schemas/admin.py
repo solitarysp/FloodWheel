@@ -50,3 +50,9 @@ class QueueConfigRequest(BaseModel):
 class CameraBatchAnalyzeRequest(BaseModel):
     camera_ids: List[str] = Field(..., min_length=1, max_length=100, description="Danh sách ID camera cần phân tích")
     force_refresh: bool = Field(True, description="Bắt buộc quét mới, bỏ qua cache AI gần nhất")
+
+
+class FakeFloodRequest(BaseModel):
+    flooded_count: Optional[int] = Field(None, ge=0, le=100, description="Số lượng camera giả lập ngập")
+    dry_count: Optional[int] = Field(None, ge=0, le=100, description="Số lượng camera giả lập khô ráo")
+
