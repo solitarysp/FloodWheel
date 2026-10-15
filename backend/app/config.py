@@ -1,5 +1,5 @@
 import json
-from typing import List, Optional, Union
+from typing import Any, List, Optional, Union
 from pydantic import field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
@@ -45,6 +45,21 @@ class Settings(BaseSettings):
     # Image upload limits
     MAX_IMAGE_SIZE_MB: int = 10
     MAX_IMAGES_PER_REQUEST: int = 5
+
+    # AI Analysis Concurrency (number of simultaneous AI analyses)
+    AI_ANALYSIS_CONCURRENCY: int = 1
+
+    @field_validator("AI_ANALYSIS_CONCURRENCY", mode="before")
+    @classmethod
+    def parse_ai_concurrency(cls, v: Any) -> int:
+        import os
+        val = v if v is not None and v != "" else (
+            os.getenv("AI_CONCURRENCY") or os.getenv("FLOOD_AI_CONCURRENCY") or 1
+        )
+        try:
+            return max(1, int(val))
+        except (ValueError, TypeError):
+            return 1
 
     @field_validator("CORS_ORIGINS", mode="before")
     @classmethod

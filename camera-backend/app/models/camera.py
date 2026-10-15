@@ -43,6 +43,10 @@ class CameraFilterQuery(BaseModel):
         default=None,
         description="Filter status: 'UP', 'DOWN', or None for all",
     )
+    has_snapshot: Optional[bool] = Field(
+        default=None,
+        description="Filter cameras with verified valid snapshots on disk",
+    )
     limit: int = Field(default=50, ge=1, le=1000)
     offset: int = Field(default=0, ge=0)
 

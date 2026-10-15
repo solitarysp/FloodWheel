@@ -163,7 +163,23 @@ class CatalogService:
         if not self._cameras_list and "hcmc" in self._providers:
             await self.sync_provider("hcmc")
 
-        filtered = [c for c in self._cameras_list if CameraFilterMatcher.matches_filter(c, query)]
+        valid_snapshot_ids = None
+        if query.has_snapshot is True and self.storage_service and self.storage_service.storage_dir.is_dir():
+            from app.services.image_validator import ImageValidator
+            valid_snapshot_ids = set()
+            for p in self.storage_service.storage_dir.glob("*.jpg"):
+                try:
+                    data = p.read_bytes()
+                    if ImageValidator.is_valid_snapshot(data):
+                        valid_snapshot_ids.add(p.stem)
+                except Exception:
+                    pass
+
+        filtered = [
+            c for c in self._cameras_list
+            if CameraFilterMatcher.matches_filter(c, query)
+            and (valid_snapshot_ids is None or c.id in valid_snapshot_ids)
+        ]
         return CameraListResponse(
             total=len(filtered),
             limit=query.limit,

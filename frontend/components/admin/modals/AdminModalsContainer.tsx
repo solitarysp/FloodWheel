@@ -1,5 +1,4 @@
 import React from "react";
-import { AddCameraModal } from "../../AddCameraModal";
 import { OverrideDialog } from "../../OverrideDialog";
 import { AdminLoginModal } from "../../AdminLoginModal";
 import { CameraPreviewModal } from "./CameraPreviewModal";
@@ -23,15 +22,6 @@ export const AdminModalsContainer: React.FC<AdminModalsContainerProps> = ({ d, a
         onSubmit={a.handleFakeRandomFlood}
         isLoading={d.actionLoading === "fake-random-flood"}
         totalCamerasCount={d.cameras?.length || 20}
-      />
-
-      <AddCameraModal
-        isOpen={d.isAddCameraOpen}
-        onClose={() => d.setIsAddCameraOpen(false)}
-        onSuccess={() => {
-          d.showToast("success", "Added new camera successfully!");
-          d.fetchDashboardData();
-        }}
       />
 
       {d.selectedZoneForOverride && (

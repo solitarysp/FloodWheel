@@ -13,6 +13,7 @@ from app.models.db_models import FloodReadingDB, FloodZone
 from app.models.flood_reading import AnalysisResponse
 from app.services.camera_registry import CameraRegistry
 from app.services.camera_service_client import CameraServiceClient
+from app.services.camera_snapshot_finder import CameraSnapshotFinder
 from app.services.camera_stream_service import CameraStreamService
 from app.services.flood_analysis_service import FloodAnalysisService
 from app.services.flood_reading_parser import FloodReadingParser
@@ -54,6 +55,7 @@ async def list_cameras(
     zone_id: Optional[str] = None,
     city: Optional[str] = Query("hcmc", description="City filter"),
     district: Optional[str] = Query(None, description="District filter"),
+    only_valid_snapshots: bool = Query(True, description="Exclude cameras without valid real snapshots"),
     db: AsyncSession = Depends(get_db),
 ):
     """Retrieve registered and municipal traffic cameras, optionally filtered by zone or district."""
@@ -64,6 +66,7 @@ async def list_cameras(
     remote_items = await camera_service_client.list_cameras(
         city=city or "hcmc",
         district=district,
+        has_snapshot=True if only_valid_snapshots else None,
         limit=500,
     )
 
@@ -81,6 +84,11 @@ async def list_cameras(
                     local_ids.add(cam_id)
                 except Exception:
                     pass
+
+    # Exclude cameras that have no authentic snapshot on disk or cache (excludes mock/synthetic fallbacks)
+    if only_valid_snapshots:
+        valid_ids = CameraSnapshotFinder.get_valid_snapshot_camera_ids()
+        merged = [cam for cam in merged if cam.id in valid_ids]
 
     # Attach latest flood readings across all cameras
     latest_readings_stmt = (

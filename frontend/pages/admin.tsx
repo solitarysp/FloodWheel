@@ -12,6 +12,7 @@ import { QueueTab } from "../components/admin/tabs/QueueTab";
 import { CamerasTab } from "../components/admin/tabs/CamerasTab";
 import { OverridesTab } from "../components/admin/tabs/OverridesTab";
 import { AlertsTab } from "../components/admin/tabs/AlertsTab";
+import { ConfigTab } from "../components/admin/tabs/ConfigTab";
 import { AdminModalsContainer } from "../components/admin/modals/AdminModalsContainer";
 
 export default function AdminPage() {
@@ -185,7 +186,6 @@ export default function AdminPage() {
                 onRefreshCache={() => d.setCacheBuster(Date.now())}
                 onClearAllReadings={a.handleClearAllReadings}
                 actionLoading={d.actionLoading}
-                onOpenAddCamera={() => d.setIsAddCameraOpen(true)}
                 onSelectNone={() => d.setSelectedCameraIds([])}
                 toggleSelectAll={toggleSelectAll}
                 toggleSelectCamera={toggleSelectCamera}
@@ -212,6 +212,13 @@ export default function AdminPage() {
               <AlertsTab
                 alerts={d.alerts}
                 onResolveAlert={a.handleResolveAlert}
+              />
+            )}
+
+            {d.activeTab === "config" && (
+              <ConfigTab
+                apiUrl={apiUrl}
+                showToast={d.showToast}
               />
             )}
           </div>

@@ -1,5 +1,5 @@
 import React from "react";
-import { RefreshCw, Sparkles, Clock } from "lucide-react";
+import { RefreshCw, Clock } from "lucide-react";
 import { Camera } from "../CameraCard";
 
 interface CameraPreviewDrawerProps {
@@ -59,8 +59,9 @@ export const CameraPreviewDrawer: React.FC<CameraPreviewDrawerProps> = ({
                 </span>
               )
             ) : (
-              <span className="text-[10px] bg-slate-800 text-slate-400 px-2 py-0.5 rounded-full border border-slate-700">
-                Not analyzed
+              <span className="inline-flex items-center gap-1 text-[10px] bg-amber-500/15 text-amber-300 px-2 py-0.5 rounded-full border border-amber-400/30 font-medium">
+                <Clock className="w-2.5 h-2.5 text-amber-400" />
+                <span>Awaiting Analysis</span>
               </span>
             )}
 
@@ -142,8 +143,9 @@ export const CameraPreviewDrawer: React.FC<CameraPreviewDrawerProps> = ({
             )}
         </div>
       ) : (
-        <div className="p-3.5 bg-slate-900/80 border-t border-slate-800 text-xs text-slate-400 text-center">
-          No flood analysis data yet. Click &quot;Analyze with AI&quot; to trigger Gemini Vision VLRDR.
+        <div className="p-4 bg-slate-900/80 border-t border-slate-800 text-xs text-amber-300/90 text-center flex items-center justify-center gap-2">
+          <Clock className="w-4 h-4 text-amber-400" />
+          <span className="font-medium">Awaiting Analysis</span>
         </div>
       )}
 
@@ -153,14 +155,20 @@ export const CameraPreviewDrawer: React.FC<CameraPreviewDrawerProps> = ({
           {selectedCamera.latitude.toFixed(4)}, {selectedCamera.longitude.toFixed(4)}
         </div>
 
-        {onAnalyze && (
-          <button
-            onClick={() => onAnalyze(selectedCamera)}
-            className="inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 text-white font-semibold text-xs shadow-md shadow-blue-500/20 transition hover:scale-[1.02]"
-          >
-            <Sparkles className="w-3.5 h-3.5" />
-            <span>{selectedCamera.latest_reading ? "Re-analyze" : "Analyze with AI"}</span>
-          </button>
+        {!selectedCamera.latest_reading ? (
+          <span className="inline-flex items-center gap-1 text-[11px] text-amber-400 font-medium">
+            <Clock className="w-3 h-3 text-amber-400" />
+            <span>Awaiting Analysis</span>
+          </span>
+        ) : (
+          <span className="text-[11px] text-slate-400 font-mono">
+            {selectedCamera.latest_reading.timestamp
+              ? new Date(selectedCamera.latest_reading.timestamp).toLocaleTimeString("en-US", {
+                  hour: "2-digit",
+                  minute: "2-digit",
+                })
+              : "Analyzed"}
+          </span>
         )}
       </div>
     </div>

@@ -10,6 +10,20 @@ from app.config import settings
 logger = logging.getLogger("floodwheel.gemini_pool")
 
 
+class OpenAIProxyClient:
+    """Wrapper for OpenAI-compatible gateway endpoints (e.g. 9router.thanhlv.com, OneAPI, LiteLLM)."""
+
+    def __init__(self, api_key: str, base_url: str):
+        self.api_key = api_key
+        clean_url = base_url.strip().rstrip("/")
+        if clean_url.endswith("/v1"):
+            self.endpoint = f"{clean_url}/chat/completions"
+        elif "/v1/" in clean_url or clean_url.endswith("/chat/completions"):
+            self.endpoint = clean_url
+        else:
+            self.endpoint = f"{clean_url}/v1/chat/completions"
+
+
 class GeminiClientPool:
     """Manages API keys, SDK client instances, and cooldown rotation."""
 
@@ -58,10 +72,14 @@ class GeminiClientPool:
         if endpoint:
             endpoint = endpoint.strip() or None
 
+        if endpoint and ("googleapis.com" not in endpoint):
+            logger.info(f"Configuring OpenAI-compatible gateway client for endpoint: {endpoint}")
+            return OpenAIProxyClient(api_key=key, base_url=endpoint)
+
         try:
             from google import genai
             if endpoint:
-                logger.info(f"Using custom Gemini endpoint: {endpoint}")
+                logger.info(f"Using custom Google GenAI endpoint: {endpoint}")
                 return genai.Client(api_key=key, http_options={"base_url": endpoint})
             return genai.Client(api_key=key)
         except Exception as exc:

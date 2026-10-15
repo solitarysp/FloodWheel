@@ -94,12 +94,34 @@ class FloodReadingParser:
             data["depth_estimate_cm_min"] = 0
             data["depth_estimate_cm_max"] = 0
 
-        # Guard against weak confidence false positives without visual landmarks
-        if data.get("flood_detected") and data.get("confidence_score", 0.0) < 0.35 and not data.get("reference_objects_used"):
-            data["flood_detected"] = False
-            data["depth_level"] = 0
-            data["depth_estimate_cm_min"] = 0
-            data["depth_estimate_cm_max"] = 0
-            data["reasoning"] += " (Filtered out: low confidence without visual landmark proof)."
+        # Guard against nighttime specular reflection / wet pavement glare false positives
+        if data.get("flood_detected", False):
+            reasoning_lower = data["reasoning"].lower()
+            refs_str = " ".join(str(r).lower() for r in data.get("reference_objects_used", []))
+
+            # Valid physical calibration landmarks
+            valid_landmarks = [
+                "wheel", "tire", "tyre", "curb", "kerb", "exhaust", "door sill",
+                "bumper", "pedestrian", "ankle", "calf", "knee", "rim"
+            ]
+            has_valid_landmark = any(lm in refs_str or lm in reasoning_lower for lm in valid_landmarks)
+
+            # Explicit indications that it is light glare, wet look, or dry road
+            indicates_dry = any(phrase in reasoning_lower for phrase in [
+                "no standing water", "zero standing water", "dry road", "surface reflection",
+                "specular reflection", "headlight reflection", "light reflection",
+                "street light reflection", "dry pavement", "no flood", "not submerged",
+                "tires are not submerged", "specular glare", "headlight glare"
+            ])
+
+            # If confidence is low, or no valid calibration landmark exists, or reasoning indicates dry/reflection
+            if indicates_dry or not has_valid_landmark or data.get("confidence_score", 0.0) < 0.35:
+                data["flood_detected"] = False
+                data["depth_level"] = 0
+                data["depth_estimate_cm_min"] = 0
+                data["depth_estimate_cm_max"] = 0
+                data["alert_message"] = "No flood detected. Road surface is clear."
+                if not has_valid_landmark:
+                    data["reasoning"] += " (Filtered out: no physical submerged landmarks found; light reflection on asphalt)."
 
         return FloodReading.model_validate(data)

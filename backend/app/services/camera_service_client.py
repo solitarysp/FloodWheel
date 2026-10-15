@@ -45,6 +45,7 @@ class CameraServiceClient:
         district: Optional[str] = None,
         keyword: Optional[str] = None,
         status: Optional[str] = None,
+        has_snapshot: Optional[bool] = None,
         limit: int = 100,
         offset: int = 0,
     ) -> Optional[List[Dict[str, Any]]]:
@@ -64,6 +65,8 @@ class CameraServiceClient:
             params["keyword"] = keyword
         if status:
             params["status"] = status
+        if has_snapshot is not None:
+            params["has_snapshot"] = "true" if has_snapshot else "false"
 
         try:
             resp = await client.get("/api/v1/cameras", params=params)

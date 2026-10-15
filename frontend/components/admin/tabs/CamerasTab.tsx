@@ -18,7 +18,6 @@ interface CamerasTabProps {
   onRefreshCache: () => void;
   onClearAllReadings: () => void;
   actionLoading: string | null;
-  onOpenAddCamera: () => void;
   onSelectNone: () => void;
   toggleSelectAll: () => void;
   toggleSelectCamera: (id: string) => void;
@@ -46,7 +45,6 @@ export const CamerasTab: React.FC<CamerasTabProps> = ({
   onRefreshCache,
   onClearAllReadings,
   actionLoading,
-  onOpenAddCamera,
   onSelectNone,
   toggleSelectAll,
   toggleSelectCamera,
@@ -75,7 +73,6 @@ export const CamerasTab: React.FC<CamerasTabProps> = ({
         onRefreshCache={onRefreshCache}
         onClearAllReadings={onClearAllReadings}
         actionLoading={actionLoading}
-        onOpenAddCamera={onOpenAddCamera}
       />
 
       {/* Active Selection Banner */}

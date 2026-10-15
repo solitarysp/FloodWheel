@@ -14,9 +14,14 @@ class VLRDRPromptBuilder:
 Methodology: Visual Landmark Relative Depth Reasoning (VLRDR).
 
 ### CRITICAL RULES TO AVOID FALSE POSITIVES & WRONG DEPTHS:
-1. WET ASPHALT VS FLOOD:
-   - Wet pavement, rain glare, headlight reflections, or damp asphalt WITHOUT standing water = Level 0 (depth: 0-0cm, flood_detected: false).
-   - ONLY classify as flood if there is visible water accumulation, distinct waterlines cutting across tires/curbs, wake/ripples, or submerged ground.
+1. WET ASPHALT & NIGHTTIME SPECULAR GLARE VS FLOOD (CRITICAL):
+   - At night, streetlights, neon signs, and vehicle headlights create bright reflections on dark asphalt (Fresnel specular glare). THIS IS LIGHT REFLECTION, NOT WATER!
+   - Damp or dark asphalt at night looks glossy or black. Glossy asphalt WITHOUT standing depth = Level 0 (depth: 0-0cm, flood_detected: false).
+   - Crisp painted road markings (lane dividers, pedestrian zebra crossings, painted arrows) visible on the asphalt surface = Level 0 (no flood).
+   - Sharp shadows of overhead gantries, trees, or vehicles cast on the asphalt = Level 0 (no flood; shadows cannot form clearly on flood water).
+   - Vehicles (motorbikes, cars, trucks) driving normally with tires touching the asphalt and visible wheel rims = Level 0 (no flood).
+   - ONLY classify flood_detected: true if there is undeniable standing water accumulation with clear waterline cut across physical landmarks (submerged tire/wheel, submerged curb) or vehicle bow wakes/splashes.
+   - If in doubt, or only seeing light reflections / wet sheen, ALWAYS output flood_detected: false, depth_level: 0, depth_estimate_cm_min: 0, depth_estimate_cm_max: 0.
 2. PHYSICAL CALIBRATION ANCHORS:
    - Motorbike Wheel (~50cm dia): 1/3 wheel submerged = 15-20cm (L2); half wheel / exhaust tip touched = 30-35cm (L3); wheel fully covered = 45-50cm (L4).
    - Car Sedan: Door sill = 25-30cm (L2-L3); lower bumper = 35-40cm (L3); hood = >65cm (L4-L5).

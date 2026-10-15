@@ -7,7 +7,7 @@ export function useAdminDashboard(apiUrl: string) {
   const [adminUser, setAdminUser] = useState<any>(null);
   const [isLoginModalOpen, setIsLoginModalOpen] = useState<boolean>(false);
 
-  const [activeTab, setActiveTab] = useState<"queue" | "cameras" | "overrides" | "alerts">("queue");
+  const [activeTab, setActiveTab] = useState<"queue" | "cameras" | "overrides" | "alerts" | "config">("queue");
 
   const [overview, setOverview] = useState<AdminOverview | null>(null);
   const [cameras, setCameras] = useState<any[]>([]);
@@ -17,7 +17,6 @@ export function useAdminDashboard(apiUrl: string) {
   const [actionLoading, setActionLoading] = useState<string | null>(null);
   const [notification, setNotification] = useState<{ type: "success" | "error"; message: string } | null>(null);
 
-  const [isAddCameraOpen, setIsAddCameraOpen] = useState<boolean>(false);
   const [selectedZoneForOverride, setSelectedZoneForOverride] = useState<AdminZone | null>(null);
   const [isConfigModalOpen, setIsConfigModalOpen] = useState<boolean>(false);
   const [isFakeFloodModalOpen, setIsFakeFloodModalOpen] = useState<boolean>(false);
@@ -188,8 +187,6 @@ export function useAdminDashboard(apiUrl: string) {
     notification,
     showToast,
     fetchDashboardData,
-    isAddCameraOpen,
-    setIsAddCameraOpen,
     selectedZoneForOverride,
     setSelectedZoneForOverride,
     isConfigModalOpen,

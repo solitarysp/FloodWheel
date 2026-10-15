@@ -18,29 +18,15 @@ class QueueWorkerLoop:
     """Manages the background worker loop, cycle scheduling, and camera queueing."""
 
     def __init__(
-        self,
-        queue: asyncio.PriorityQueue,
-        enqueued_ids: set,
-        wake_event: asyncio.Event,
-        executor: TaskExecutor,
-        discoverer: CameraDiscoverer,
-        sync_redis_cb: Callable,
-        record_result_cb: Callable,
-        get_seq_counter: Callable[[], int],
-        inc_seq_counter: Callable[[], int],
+        self, queue: asyncio.PriorityQueue, enqueued_ids: set, wake_event: asyncio.Event,
+        executor: TaskExecutor, discoverer: CameraDiscoverer, sync_redis_cb: Callable,
+        record_result_cb: Callable, get_seq_counter: Callable[[], int], inc_seq_counter: Callable[[], int],
     ):
-        self.queue = queue
-        self.enqueued_ids = enqueued_ids
-        self.wake_event = wake_event
-        self.executor = executor
-        self.discoverer = discoverer
-        self.sync_redis_cb = sync_redis_cb
-        self.record_result_cb = record_result_cb
-        self.get_seq_counter = get_seq_counter
-        self.inc_seq_counter = inc_seq_counter
+        self.queue, self.enqueued_ids, self.wake_event = queue, enqueued_ids, wake_event
+        self.executor, self.discoverer, self.sync_redis_cb = executor, discoverer, sync_redis_cb
+        self.record_result_cb, self.get_seq_counter, self.inc_seq_counter = record_result_cb, get_seq_counter, inc_seq_counter
 
-        self.running: bool = False
-        self.paused: bool = False
+        self.running, self.paused = False, False
         self.auto_cycle_enabled: bool = getattr(settings, "FLOOD_QUEUE_AUTO_START", False)
         self.status: str = "idle"
         self.current_cycle_id: int = 0
@@ -54,26 +40,30 @@ class QueueWorkerLoop:
         self.interval_seconds: int = 1800
         self.max_cameras_per_cycle: int = 15
 
+        self.concurrency: int = max(1, getattr(settings, "AI_ANALYSIS_CONCURRENCY", 1))
+        self.active_camera_ids: Set[str] = set()
+        self._progress_lock = asyncio.Lock()
         self.cycle_progress: Dict[str, Any] = {
             "cycle_id": 0, "total": 0, "processed": 0, "success": 0, "skipped": 0, "failed": 0, "flooded": 0
         }
         self.last_cycle_summary: Dict[str, Any] = {}
 
     async def run(self):
-        logger.info("AI Queue worker started. Monitoring priority tasks and cycle scheduler.")
+        logger.info("AI Queue worker started (concurrency: %d). Monitoring tasks.", self.concurrency)
         await asyncio.sleep(3)
+        active_tasks: Set[asyncio.Task] = set()
 
         while self.running:
             try:
-                if not self.queue.empty():
+                while len(active_tasks) < self.concurrency and not self.queue.empty():
                     _, _, item = await self.queue.get()
-                    try:
-                        await self.execute_item(item)
-                    finally:
-                        if item.camera_id:
-                            self.enqueued_ids.discard(item.camera_id)
-                        self.queue.task_done()
-                        await self.sync_redis_cb()
+                    task = asyncio.create_task(self._process_queue_item(item))
+                    active_tasks.add(task)
+                    task.add_done_callback(active_tasks.discard)
+
+                if active_tasks:
+                    self.status = "running"
+                    await asyncio.wait(active_tasks, return_when=asyncio.FIRST_COMPLETED, timeout=0.5)
                     continue
 
                 now = datetime.now(timezone.utc)
@@ -96,7 +86,7 @@ class QueueWorkerLoop:
                     rem = (self.next_run_at - datetime.now(timezone.utc)).total_seconds()
                     sleep_sec = max(1.0, min(float(self.interval_seconds), rem))
                 elif not self.auto_cycle_enabled:
-                    sleep_sec = 86400.0  # Sleep until awakened by a submitted task or manual trigger
+                    sleep_sec = 86400.0
 
                 self.wake_event.clear()
                 try:
@@ -106,12 +96,23 @@ class QueueWorkerLoop:
 
             except asyncio.CancelledError:
                 logger.info("Flood queue worker loop cancelled.")
+                for t in active_tasks:
+                    t.cancel()
                 break
             except Exception as loop_exc:
                 logger.exception("Unexpected error in flood queue worker loop: %s", loop_exc)
                 self.status = "error"
                 await asyncio.sleep(5)
                 self.status = "idle"
+
+    async def _process_queue_item(self, item: QueueItem):
+        try:
+            await self.execute_item(item)
+        finally:
+            if item.camera_id:
+                self.enqueued_ids.discard(item.camera_id)
+            self.queue.task_done()
+            await self.sync_redis_cb()
 
     async def launch_scheduled_cycle(self):
         self.status = "running"
@@ -175,28 +176,33 @@ class QueueWorkerLoop:
         self.current_camera_id = item.camera_id
         self.current_camera_name = item.camera_name or item.camera_id
         self.current_task_type = item.task_type
+        if item.camera_id:
+            self.active_camera_ids.add(item.camera_id)
         await self.sync_redis_cb()
 
-        result_data = await self.executor.execute(item)
-        status_str = result_data["status_str"]
-        completed_at = result_data["completed_at"]
-        res = result_data["res"]
+        try:
+            result_data = await self.executor.execute(item)
+            status_str, completed_at, res = result_data["status_str"], result_data["completed_at"], result_data["res"]
+            self.record_result_cb(result_data["recent_entry"])
 
-        self.record_result_cb(result_data["recent_entry"])
-
-        if item.cycle_id and item.cycle_id == self.current_cycle_id:
-            self.cycle_progress["processed"] += 1
-            if status_str == "COMPLETED":
-                self.cycle_progress["success"] += 1
-                if res and res.reading and res.reading.flood_detected:
-                    self.cycle_progress["flooded"] += 1
-            elif status_str == "SKIPPED":
-                self.cycle_progress["skipped"] += 1
-            else:
-                self.cycle_progress["failed"] += 1
-
-            if self.cycle_progress["processed"] >= self.cycle_progress["total"]:
-                self.finish_cycle(completed_at)
+            if item.cycle_id and item.cycle_id == self.current_cycle_id:
+                async with self._progress_lock:
+                    self.cycle_progress["processed"] += 1
+                    if status_str == "COMPLETED":
+                        self.cycle_progress["success"] += 1
+                        if res and res.reading and res.reading.flood_detected:
+                            self.cycle_progress["flooded"] += 1
+                    elif status_str == "SKIPPED":
+                        self.cycle_progress["skipped"] += 1
+                    else:
+                        self.cycle_progress["failed"] += 1
+                    if self.cycle_progress["processed"] >= self.cycle_progress["total"]:
+                        self.finish_cycle(completed_at)
+        finally:
+            if item.camera_id:
+                self.active_camera_ids.discard(item.camera_id)
+            if not self.active_camera_ids:
+                self.current_camera_id, self.current_camera_name, self.current_task_type = None, None, None
 
     def finish_cycle(self, cycle_end_time: datetime):
         cycle_start_time = self.last_cycle_started_at or cycle_end_time
