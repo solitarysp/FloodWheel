@@ -35,14 +35,21 @@ class BatchAnalyzer:
         else:
             remote_cams = await self.camera_service_client.list_cameras(
                 district=district,
+                has_snapshot=True,
                 limit=limit * 2,
             )
             if remote_cams:
                 targets = [c["id"] for c in remote_cams[:limit]]
             else:
-                stmt = select(Camera).where(Camera.status != "OFFLINE").limit(limit)
+                from app.services.camera_snapshot_finder import CameraSnapshotFinder
+                valid_ids = CameraSnapshotFinder.get_valid_snapshot_camera_ids()
+                stmt = select(Camera).where(Camera.status != "OFFLINE")
                 res = await session.execute(stmt)
-                targets = [c.id for c in res.scalars().all()]
+                db_cams = [c.id for c in res.scalars().all()]
+                if valid_ids:
+                    targets = [cid for cid in db_cams if cid in valid_ids][:limit]
+                else:
+                    targets = db_cams[:limit]
 
         if not targets:
             return {
