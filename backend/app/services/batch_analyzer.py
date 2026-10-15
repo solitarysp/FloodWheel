@@ -59,64 +59,70 @@ class BatchAnalyzer:
                 "results": [],
             }
 
-        results = []
-        for cid in targets:
-            try:
-                async with AsyncSessionLocal() as worker_session:
-                    res = await self._analyze_single_camera(worker_session, cid)
+        concurrency = max(1, getattr(settings, "AI_ANALYSIS_CONCURRENCY", 1))
+        sem = asyncio.Semaphore(concurrency)
 
-                if res.model_used == "skipped-default-image":
-                    results.append({
+        async def _analyze_target(cid: str) -> Dict[str, Any]:
+            async with sem:
+                try:
+                    async with AsyncSessionLocal() as worker_session:
+                        res = await self._analyze_single_camera(worker_session, cid)
+
+                    if res.model_used == "skipped-default-image":
+                        return {
+                            "camera_id": cid,
+                            "success": True,
+                            "skipped": True,
+                            "reason": "Ảnh mặc định (chưa có luồng thực tế)",
+                            "depth_level": 0,
+                            "depth_cm_min": 0,
+                            "depth_cm_max": 0,
+                            "flood_detected": False,
+                            "confidence_score": 0.0,
+                            "alert_message": res.reading.alert_message,
+                            "inference_time_ms": 0.0,
+                        }
+                    elif res.model_used == "cache-hit":
+                        await asyncio.sleep(0.1)
+                        return {
+                            "camera_id": cid,
+                            "success": True,
+                            "skipped": False,
+                            "cached": True,
+                            "depth_level": res.reading.depth_level,
+                            "depth_cm_min": res.reading.depth_estimate_cm_min,
+                            "depth_cm_max": res.reading.depth_estimate_cm_max,
+                            "flood_detected": res.reading.flood_detected,
+                            "confidence_score": res.reading.confidence_score,
+                            "alert_message": res.reading.alert_message,
+                            "inference_time_ms": res.inference_time_ms,
+                        }
+                    else:
+                        if concurrency == 1:
+                            scan_delay = float(getattr(settings, "GEMINI_MIN_CALL_INTERVAL_SECONDS", 6.0)) + 1.0
+                            await asyncio.sleep(scan_delay)
+                        return {
+                            "camera_id": cid,
+                            "success": True,
+                            "skipped": False,
+                            "cached": False,
+                            "depth_level": res.reading.depth_level,
+                            "depth_cm_min": res.reading.depth_estimate_cm_min,
+                            "depth_cm_max": res.reading.depth_estimate_cm_max,
+                            "flood_detected": res.reading.flood_detected,
+                            "confidence_score": res.reading.confidence_score,
+                            "alert_message": res.reading.alert_message,
+                            "inference_time_ms": res.inference_time_ms,
+                        }
+                except Exception as exc:
+                    logger.error("Error analyzing camera %s in batch: %s", cid, exc)
+                    return {
                         "camera_id": cid,
-                        "success": True,
-                        "skipped": True,
-                        "reason": "Ảnh mặc định (chưa có luồng thực tế)",
-                        "depth_level": 0,
-                        "depth_cm_min": 0,
-                        "depth_cm_max": 0,
-                        "flood_detected": False,
-                        "confidence_score": 0.0,
-                        "alert_message": res.reading.alert_message,
-                        "inference_time_ms": 0.0,
-                    })
-                elif res.model_used == "cache-hit":
-                    results.append({
-                        "camera_id": cid,
-                        "success": True,
-                        "skipped": False,
-                        "cached": True,
-                        "depth_level": res.reading.depth_level,
-                        "depth_cm_min": res.reading.depth_estimate_cm_min,
-                        "depth_cm_max": res.reading.depth_estimate_cm_max,
-                        "flood_detected": res.reading.flood_detected,
-                        "confidence_score": res.reading.confidence_score,
-                        "alert_message": res.reading.alert_message,
-                        "inference_time_ms": res.inference_time_ms,
-                    })
-                    await asyncio.sleep(0.5)
-                else:
-                    results.append({
-                        "camera_id": cid,
-                        "success": True,
-                        "skipped": False,
-                        "cached": False,
-                        "depth_level": res.reading.depth_level,
-                        "depth_cm_min": res.reading.depth_estimate_cm_min,
-                        "depth_cm_max": res.reading.depth_estimate_cm_max,
-                        "flood_detected": res.reading.flood_detected,
-                        "confidence_score": res.reading.confidence_score,
-                        "alert_message": res.reading.alert_message,
-                        "inference_time_ms": res.inference_time_ms,
-                    })
-                    scan_delay = float(getattr(settings, "GEMINI_MIN_CALL_INTERVAL_SECONDS", 6.0)) + 1.0
-                    await asyncio.sleep(scan_delay)
-            except Exception as exc:
-                logger.error("Error analyzing camera %s in batch: %s", cid, exc)
-                results.append({
-                    "camera_id": cid,
-                    "success": False,
-                    "error": str(exc),
-                })
+                        "success": False,
+                        "error": str(exc),
+                    }
+
+        results = list(await asyncio.gather(*[_analyze_target(cid) for cid in targets]))
 
         successful = [r for r in results if r.get("success")]
         flooded_count = sum(1 for r in successful if r.get("flood_detected"))

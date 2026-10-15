@@ -46,6 +46,21 @@ class Settings(BaseSettings):
     MAX_IMAGE_SIZE_MB: int = 10
     MAX_IMAGES_PER_REQUEST: int = 5
 
+    # AI Analysis Concurrency (number of simultaneous AI analyses)
+    AI_ANALYSIS_CONCURRENCY: int = 1
+
+    @field_validator("AI_ANALYSIS_CONCURRENCY", mode="before")
+    @classmethod
+    def parse_ai_concurrency(cls, v: Any) -> int:
+        import os
+        val = v if v is not None and v != "" else (
+            os.getenv("AI_CONCURRENCY") or os.getenv("FLOOD_AI_CONCURRENCY") or 1
+        )
+        try:
+            return max(1, int(val))
+        except (ValueError, TypeError):
+            return 1
+
     @field_validator("CORS_ORIGINS", mode="before")
     @classmethod
     def parse_cors_origins(cls, v: Union[List[str], str]) -> List[str]:

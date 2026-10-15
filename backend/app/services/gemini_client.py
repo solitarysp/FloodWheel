@@ -16,14 +16,20 @@ logger = logging.getLogger(__name__)
 class GeminiClient:
     """Production client for Gemini Multimodal Vision API with multi-key rotation and rate-limit guard."""
 
-    _analysis_lock: Optional[asyncio.Lock] = None
+    _analysis_semaphore: Optional[asyncio.Semaphore] = None
     _last_call_timestamp: float = 0.0
 
     @classmethod
-    def _get_lock(cls) -> asyncio.Lock:
-        if cls._analysis_lock is None:
-            cls._analysis_lock = asyncio.Lock()
-        return cls._analysis_lock
+    def _get_semaphore(cls) -> asyncio.Semaphore:
+        if cls._analysis_semaphore is None:
+            concurrency = max(1, getattr(settings, "AI_ANALYSIS_CONCURRENCY", 1))
+            cls._analysis_semaphore = asyncio.Semaphore(concurrency)
+        return cls._analysis_semaphore
+
+    @classmethod
+    def _get_lock(cls):
+        """Backward-compatibility alias."""
+        return cls._get_semaphore()
 
     def __init__(self, api_key: Optional[str] = None, model_name: Optional[str] = None):
         self.pool = GeminiClientPool(api_key=api_key)
@@ -46,18 +52,20 @@ class GeminiClient:
         location_hint: Optional[str] = None,
         max_retries: int = 3,
     ) -> Tuple[str, str, float, Optional[int]]:
-        """Analyzes an image using Gemini Vision with strict 1-at-a-time concurrency lock and pacing."""
-        lock = self._get_lock()
-        async with lock:
-            now = time.time()
-            elapsed_since_last = now - GeminiClient._last_call_timestamp
-            if elapsed_since_last < self.min_call_interval:
-                sleep_needed = self.min_call_interval - elapsed_since_last
-                logger.info(
-                    "Pacing Gemini API requests to prevent 429 (sleeping %.2fs before next request)",
-                    sleep_needed,
-                )
-                await asyncio.sleep(sleep_needed)
+        """Analyzes an image using Gemini Vision with concurrency control and pacing."""
+        sem = self._get_semaphore()
+        async with sem:
+            concurrency = max(1, getattr(settings, "AI_ANALYSIS_CONCURRENCY", 1))
+            if concurrency == 1 and self.min_call_interval > 0:
+                now = time.time()
+                elapsed_since_last = now - GeminiClient._last_call_timestamp
+                if elapsed_since_last < self.min_call_interval:
+                    sleep_needed = self.min_call_interval - elapsed_since_last
+                    logger.info(
+                        "Pacing Gemini API requests to prevent 429 (sleeping %.2fs before next request)",
+                        sleep_needed,
+                    )
+                    await asyncio.sleep(sleep_needed)
 
             try:
                 return await self._execute_analysis_with_retries(
