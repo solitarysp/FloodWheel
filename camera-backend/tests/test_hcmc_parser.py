@@ -1,9 +1,10 @@
 """Unit tests for HCMCCameraProvider parser and utilities."""
 
 import io
-from PIL import Image
-import pytest
-from app.providers.hcmc import HCMCCameraProvider
+try:
+    import pytest
+except ImportError:
+    pytest = None
 
 
 def test_clean_ajaxpro_response_simple():

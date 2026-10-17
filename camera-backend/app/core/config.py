@@ -47,6 +47,7 @@ class Settings(BaseSettings):
     # Caching & Synchronization Settings
     SNAPSHOT_CACHE_TTL_SECONDS: float = 10.0
     SESSION_COOKIE_TTL_SECONDS: float = 900.0  # 15 minutes
+    COOKIE_RETRY_INTERVAL_SECONDS: int = 300  # 5 minutes retry interval on cookie failure
     CATALOG_SYNC_INTERVAL_SECONDS: int = 21600  # 6 hours
     SNAPSHOT_CRAWL_INTERVAL_SECONDS: int = 600  # 10 minutes periodic crawl
     SNAPSHOT_CRAWL_CONCURRENCY: int = 1  # sequential queue

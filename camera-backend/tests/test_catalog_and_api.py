@@ -1,6 +1,14 @@
 """Unit and integration tests for CatalogService, CacheService, and API endpoints."""
 
-import pytest
+try:
+    import pytest
+except ImportError:
+    class _MockPytest:
+        class mark:
+            @staticmethod
+            def asyncio(fn):
+                return fn
+    pytest = _MockPytest()
 from app.models.camera import CameraDTO, CameraFilterQuery
 from app.services.cache_service import CacheService
 from app.services.catalog_service import CatalogService

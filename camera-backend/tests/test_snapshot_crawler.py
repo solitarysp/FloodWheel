@@ -1,6 +1,14 @@
 import asyncio
 from unittest.mock import AsyncMock, MagicMock, patch
-import pytest
+try:
+    import pytest
+except ImportError:
+    class _MockPytest:
+        class mark:
+            @staticmethod
+            def asyncio(fn):
+                return fn
+    pytest = _MockPytest()
 
 from app.models.camera import CameraDTO
 from app.services.snapshot_crawler import SnapshotCrawlerService

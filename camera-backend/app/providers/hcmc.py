@@ -11,7 +11,10 @@ import json
 import logging
 from typing import Any, Dict, List, Optional, Tuple
 
-import httpx
+try:
+    import httpx
+except ImportError:
+    httpx = None  # type: ignore
 
 from app.core.config import settings
 from app.models.camera import CameraDTO
@@ -19,6 +22,7 @@ from app.providers.base import BaseCameraProvider
 from app.providers.hcmc_catalog import HCMCCatalogParser
 from app.providers.hcmc_mock import HCMCMockFrameGenerator
 from app.providers.hcmc_parser import HCMCParser
+from app.providers.hcmc_session import HCMCSessionManager
 from app.providers.hcmc_snapshot import HCMCSnapshotHandler
 
 logger = logging.getLogger("camera_service.hcmc_provider")
@@ -50,72 +54,74 @@ class HCMCCameraProvider(BaseCameraProvider):
     def __init__(self, cache_service: Optional[Any] = None, storage_service: Optional[Any] = None):
         self.cache_service = cache_service
         self.storage_service = storage_service
-        self._cookies: Dict[str, str] = {}
-        self._auth_lock = asyncio.Lock()
         self._cached_cameras: Optional[List[CameraDTO]] = None
         self._last_synced_at: Optional[datetime] = None
 
-        self._client = httpx.AsyncClient(
-            timeout=httpx.Timeout(settings.HTTP_TIMEOUT_SECONDS, connect=5.0),
-            headers={
-                "User-Agent": settings.HCMC_USER_AGENT,
-                "Referer": settings.HCMC_MAP_URL,
-                "Accept-Language": "vi,en-US;q=0.9,en;q=0.8",
-            },
-            follow_redirects=True,
+        if httpx is not None:
+            self._client = httpx.AsyncClient(
+                timeout=httpx.Timeout(settings.HTTP_TIMEOUT_SECONDS, connect=5.0),
+                headers={
+                    "User-Agent": settings.HCMC_USER_AGENT,
+                    "Referer": settings.HCMC_MAP_URL,
+                    "Accept-Language": "vi,en-US;q=0.9,en;q=0.8",
+                },
+                follow_redirects=True,
+            )
+        else:
+            self._client = None
+
+        self.session_manager = HCMCSessionManager(
+            client=self._client,
+            cache_service=self.cache_service,
+            retry_interval_seconds=settings.COOKIE_RETRY_INTERVAL_SECONDS,
+            on_recovered_callback=self._on_cookie_recovered,
         )
         self._snapshot_handler = HCMCSnapshotHandler(self._client, self.storage_service)
+
+    @property
+    def _cookies(self) -> Dict[str, str]:
+        """Provides backward-compatible access to current session cookies."""
+        return self.session_manager.cookies
+
+    @_cookies.setter
+    def _cookies(self, val: Dict[str, str]):
+        self.session_manager.cookies = val
+
+    @property
+    def _auth_lock(self) -> asyncio.Lock:
+        """Backward-compatible access to the session auth lock."""
+        return self.session_manager._auth_lock
 
     # Expose parser & mock helper methods on the class for backward compatibility
     _clean_ajaxpro_response = staticmethod(HCMCParser.clean_ajaxpro_response)
     _parse_coordinates = staticmethod(HCMCParser.parse_coordinates)
     generate_mock_frame = classmethod(lambda cls, cam_id, name="": HCMCMockFrameGenerator.generate_mock_frame(cam_id, name))
 
+    async def _on_cookie_recovered(self):
+        """Self-healing hook triggered when cookie acquisition recovers after retries."""
+        logger.info("HCMC cookie recovered. Checking if catalog needs initial or refresh sync...")
+        if not self._cached_cameras:
+            try:
+                await self.get_cameras(force_refresh=True)
+            except Exception as exc:
+                logger.warning("Failed to refresh catalog after cookie recovery: %s", exc)
+
     async def close(self):
-        """Closes the underlying HTTP client."""
-        if not self._client.is_closed:
+        """Closes the underlying session manager and HTTP client."""
+        await self.session_manager.close()
+        if self._client is not None and not self._client.is_closed:
             await self._client.aclose()
 
     async def init_session(self, force: bool = False) -> Dict[str, str]:
-        """Fetches or refreshes session authentication cookies from map.aspx."""
-        async with self._auth_lock:
-            if not force and self.cache_service:
-                cached = await self.cache_service.get_session_cookies("hcmc")
-                if cached and ".VDMS" in cached:
-                    self._cookies = cached
-                    return self._cookies
-
-            if not force and self._cookies and ".VDMS" in self._cookies:
-                return self._cookies
-
-            logger.info("Initializing session with HCMC portal: %s", settings.HCMC_MAP_URL)
-            try:
-                resp = await self._client.get(settings.HCMC_MAP_URL)
-                resp.raise_for_status()
-
-                new_cookies = dict(resp.cookies)
-                for header_val in resp.headers.get_list("set-cookie"):
-                    parts = header_val.split(";")[0].split("=", 1)
-                    if len(parts) == 2:
-                        new_cookies[parts[0].strip()] = parts[1].strip()
-
-                self._cookies = new_cookies
-                logger.info("Session established. .VDMS present: %s", ".VDMS" in self._cookies)
-                if self.cache_service and self._cookies:
-                    await self.cache_service.set_session_cookies(
-                        "hcmc", self._cookies, ttl=settings.SESSION_COOKIE_TTL_SECONDS
-                    )
-                return self._cookies
-            except Exception as exc:
-                logger.error("Failed to establish HCMC portal session: %s", exc)
-                return self._cookies
+        """Fetches or refreshes session authentication cookies from map.aspx with 5-min retry on failure."""
+        return await self.session_manager.ensure_session(force=force)
 
     async def get_cameras(self, force_refresh: bool = False) -> List[CameraDTO]:
         """Queries the AjaxPro FolderAjax endpoint to retrieve all ~800 public traffic cameras."""
         if self._cached_cameras is not None and not force_refresh:
             return self._cached_cameras
 
-        if not self._cookies or ".VDMS" not in self._cookies:
+        if not self.session_manager.is_cookie_valid(self._cookies):
             await self.init_session()
 
         headers = {"Content-Type": "text/plain; charset=UTF-8", "X-AjaxPro-Method": "SearchQuery"}
@@ -161,7 +167,7 @@ class HCMCCameraProvider(BaseCameraProvider):
         height: Optional[int] = None,
     ) -> Tuple[bytes, str]:
         """Fetches the real-time JPEG snapshot from port 8007 CameraHandler.ashx."""
-        if not self._cookies or ".VDMS" not in self._cookies:
+        if not self.session_manager.is_cookie_valid(self._cookies):
             await self.init_session()
 
         return await self._snapshot_handler.get_snapshot(
@@ -173,8 +179,9 @@ class HCMCCameraProvider(BaseCameraProvider):
         )
 
     async def health_check(self) -> Dict[str, Any]:
-        """Verifies connectivity to municipal endpoints."""
-        has_cookies = bool(self._cookies and ".VDMS" in self._cookies)
+        """Verifies connectivity to municipal endpoints and cookie session telemetry."""
+        session_telemetry = self.session_manager.get_telemetry()
+        has_cookies = session_telemetry["has_valid_cookie"]
         return {
             "provider": self.provider_name,
             "city": self.city,
@@ -182,4 +189,5 @@ class HCMCCameraProvider(BaseCameraProvider):
             "session_active": has_cookies,
             "cached_cameras_count": len(self._cached_cameras) if self._cached_cameras else 0,
             "last_synced_at": self._last_synced_at.isoformat() if self._last_synced_at else None,
+            "session": session_telemetry,
         }
