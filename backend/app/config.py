@@ -40,7 +40,7 @@ class Settings(BaseSettings):
     SNAPSHOT_STORAGE_DIR: str = "storage/snapshots"
 
     # CORS
-    CORS_ORIGINS: Union[List[str], str] = ["http://localhost:3000", "http://127.0.0.1:3000"]
+    CORS_ORIGINS: Union[List[str], str] = ["http://localhost:3000", "http://127.0.0.1:3000", "https://zeroflood.web.app", "https://floodwheel-backend-220385341109.asia-southeast1.run.app"]
 
     # Image upload limits
     MAX_IMAGE_SIZE_MB: int = 10
