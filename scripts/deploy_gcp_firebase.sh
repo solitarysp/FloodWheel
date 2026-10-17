@@ -61,7 +61,7 @@ gcloud run deploy floodwheel-camera-backend \
     --max-instances 5 \
     --memory 512Mi \
     --cpu 1 \
-    --set-env-vars "ENVIRONMENT=production,LOG_LEVEL=INFO,PORT=8080"
+    --set-env-vars "ENVIRONMENT=production,LOG_LEVEL=INFO"
 
 CAMERA_SERVICE_URL=$(gcloud run services describe floodwheel-camera-backend --region "$REGION" --format='value(status.url)')
 echo -e "${GREEN}Camera Backend URL: ${CAMERA_SERVICE_URL}${NC}"
@@ -74,6 +74,7 @@ if ! gcloud sql instances describe "$DB_INSTANCE" >/dev/null 2>&1; then
     gcloud sql instances create "$DB_INSTANCE" \
         --database-version=POSTGRES_16 \
         --tier=db-f1-micro \
+        --edition=ENTERPRISE \
         --region="$REGION" \
         --storage-type=SSD \
         --storage-size=10GB \
@@ -96,7 +97,7 @@ gcloud builds submit --tag "${REGISTRY_BASE}/backend:latest" ./backend
 GEMINI_KEY=$(grep -E '^GEMINI_API_KEY=' .env | cut -d '=' -f2- || echo "")
 ADMIN_PASSWORD_VAL=$(grep -E '^ADMIN_PASSWORD=' .env | cut -d '=' -f2- || echo "admin123")
 
-CLOUDSQL_ASYNC_URL="postgresql+asyncpg://${DB_USER}:postgres@/${DB_NAME}?host=/cloudsql/${INSTANCE_CONNECTION_NAME}"
+CLOUDSQL_ASYNC_URL="postgresql+asyncpg://${DB_USER}:${DB_PASSWORD}@/${DB_NAME}?host=/cloudsql/${INSTANCE_CONNECTION_NAME}"
 
 gcloud run deploy floodwheel-backend \
     --image "${REGISTRY_BASE}/backend:latest" \
@@ -108,14 +109,22 @@ gcloud run deploy floodwheel-backend \
     --memory 1Gi \
     --cpu 1 \
     --add-cloudsql-instances "$INSTANCE_CONNECTION_NAME" \
-    --set-env-vars "ENVIRONMENT=production,LOG_LEVEL=INFO,PORT=8080,CAMERA_BACKEND_URL=${CAMERA_SERVICE_URL},DATABASE_URL=${CLOUDSQL_ASYNC_URL},GEMINI_API_KEY=${GEMINI_KEY},ADMIN_PASSWORD=${ADMIN_PASSWORD_VAL}"
+    --set-env-vars "ENVIRONMENT=production,LOG_LEVEL=INFO,CAMERA_BACKEND_URL=${CAMERA_SERVICE_URL},DATABASE_URL=${CLOUDSQL_ASYNC_URL},GEMINI_API_KEY=${GEMINI_KEY},ADMIN_PASSWORD=${ADMIN_PASSWORD_VAL}"
 
 BACKEND_URL=$(gcloud run services describe floodwheel-backend --region "$REGION" --format='value(status.url)')
 echo -e "${GREEN}Core Backend URL: ${BACKEND_URL}${NC}"
 
 # --- 4. EXPORT & DEPLOY FRONTEND TO FIREBASE HOSTING ---
 echo -e "${GREEN}==> 4/4: Building static frontend and deploying to Firebase Hosting...${NC}"
-cd frontend
+cd frontend || exit 1
+
+Install frontend dependencies
+
+if [ -f package-lock.json ]; then
+npm ci
+else
+npm install
+fi
 export NEXT_PUBLIC_API_URL="$BACKEND_URL"
 npm run build
 cd ..
