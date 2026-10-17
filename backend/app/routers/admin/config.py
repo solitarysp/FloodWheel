@@ -66,6 +66,7 @@ def get_system_config_dict() -> Dict[str, Any]:
             "cors_origins": settings.CORS_ORIGINS if isinstance(settings.CORS_ORIGINS, list) else [settings.CORS_ORIGINS],
             "max_image_size_mb": settings.MAX_IMAGE_SIZE_MB,
             "max_images_per_request": settings.MAX_IMAGES_PER_REQUEST,
+            "snapshot_error_retry_count": getattr(settings, "SNAPSHOT_ERROR_RETRY_COUNT", 3),
         },
     }
 

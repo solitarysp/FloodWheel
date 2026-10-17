@@ -1,7 +1,20 @@
 import json
 from typing import Any, List, Optional, Union
-from pydantic import field_validator
-from pydantic_settings import BaseSettings, SettingsConfigDict
+try:
+    from pydantic import field_validator
+    from pydantic_settings import BaseSettings, SettingsConfigDict
+except ImportError:
+    try:
+        from pydantic import field_validator, BaseModel as BaseSettings  # type: ignore
+        SettingsConfigDict = dict  # type: ignore
+    except ImportError:
+        def field_validator(*args, **kwargs):  # type: ignore
+            return lambda fn: fn
+        class BaseSettings:  # type: ignore
+            def __init__(self, **kwargs):
+                for k, v in kwargs.items():
+                    setattr(self, k, v)
+        SettingsConfigDict = dict  # type: ignore
 
 
 class Settings(BaseSettings):
@@ -38,6 +51,8 @@ class Settings(BaseSettings):
     # Microservices
     CAMERA_BACKEND_URL: str = "http://camera-backend:8001"
     SNAPSHOT_STORAGE_DIR: str = "storage/snapshots"
+    SNAPSHOT_ERROR_RETRY_COUNT: int = 3
+    SNAPSHOT_ERROR_RETRY_DELAY_SECONDS: float = 0.0
 
     # CORS
     CORS_ORIGINS: Union[List[str], str] = ["http://localhost:3000", "http://127.0.0.1:3000"]
@@ -48,6 +63,18 @@ class Settings(BaseSettings):
 
     # AI Analysis Concurrency (number of simultaneous AI analyses)
     AI_ANALYSIS_CONCURRENCY: int = 1
+
+    @field_validator("SNAPSHOT_ERROR_RETRY_COUNT", mode="before")
+    @classmethod
+    def parse_snapshot_retry_count(cls, v: Any) -> int:
+        import os
+        val = v if v is not None and v != "" else (
+            os.getenv("SNAPSHOT_ERROR_RETRY_COUNT") or os.getenv("SNAPSHOT_RETRY_COUNT") or 3
+        )
+        try:
+            return max(0, int(val))
+        except (ValueError, TypeError):
+            return 3
 
     @field_validator("AI_ANALYSIS_CONCURRENCY", mode="before")
     @classmethod

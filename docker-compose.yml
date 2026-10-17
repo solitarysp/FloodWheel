@@ -32,6 +32,7 @@ services:
       - REDIS_URL=redis://redis:6379/0
       - CAMERA_BACKEND_URL=http://camera-backend:8001
       - SNAPSHOT_STORAGE_DIR=/app/storage/snapshots
+      - SNAPSHOT_ERROR_RETRY_COUNT=${SNAPSHOT_ERROR_RETRY_COUNT:-3}
       - CORS_ORIGINS=["http://localhost:3000","http://127.0.0.1:3000"]
     volumes:
       - ./backend:/app
@@ -61,6 +62,7 @@ services:
       - LOG_LEVEL=${LOG_LEVEL:-INFO}
       - REDIS_URL=redis://redis:6379/1
       - PORT=8001
+      - SNAPSHOT_ERROR_RETRY_COUNT=${SNAPSHOT_ERROR_RETRY_COUNT:-3}
       - CORS_ORIGINS=["http://localhost:3000","http://127.0.0.1:3000","http://localhost:8000","http://127.0.0.1:8000","http://backend:8000"]
       - SNAPSHOT_STORAGE_DIR=/app/storage/snapshots
     volumes:

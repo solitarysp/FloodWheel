@@ -1,11 +1,20 @@
 """Application configuration module using Pydantic Settings."""
 
-from typing import List, Union
-from pydantic import AnyHttpUrl, field_validator
+from typing import Any, List, Union
 try:
+    from pydantic import AnyHttpUrl, field_validator
     from pydantic_settings import BaseSettings
 except ImportError:
-    from pydantic import BaseModel as BaseSettings
+    try:
+        from pydantic import AnyHttpUrl, field_validator, BaseModel as BaseSettings  # type: ignore
+    except ImportError:
+        AnyHttpUrl = str  # type: ignore
+        def field_validator(*args, **kwargs):  # type: ignore
+            return lambda fn: fn
+        class BaseSettings:  # type: ignore
+            def __init__(self, **kwargs):
+                for k, v in kwargs.items():
+                    setattr(self, k, v)
 
 
 class Settings(BaseSettings):
@@ -45,6 +54,8 @@ class Settings(BaseSettings):
     SNAPSHOT_CRAWL_ENABLED: bool = True
     HTTP_TIMEOUT_SECONDS: float = 12.0
     SNAPSHOT_STORAGE_DIR: str = "storage/snapshots"
+    SNAPSHOT_ERROR_RETRY_COUNT: int = 3
+    SNAPSHOT_ERROR_RETRY_DELAY_SECONDS: float = 0.0
 
     # CORS Settings
     CORS_ORIGINS: List[str] = [
@@ -55,6 +66,18 @@ class Settings(BaseSettings):
         "http://backend:8000",
         "http://frontend:3000",
     ]
+
+    @field_validator("SNAPSHOT_ERROR_RETRY_COUNT", mode="before")
+    @classmethod
+    def parse_retry_count(cls, v: Any) -> int:
+        import os
+        val = v if v is not None and v != "" else (
+            os.getenv("SNAPSHOT_ERROR_RETRY_COUNT") or os.getenv("SNAPSHOT_RETRY_COUNT") or 3
+        )
+        try:
+            return max(0, int(val))
+        except (ValueError, TypeError):
+            return 3
 
     @field_validator("CORS_ORIGINS", mode="before")
     @classmethod

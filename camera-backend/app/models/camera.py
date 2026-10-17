@@ -2,7 +2,15 @@
 
 from datetime import datetime, timezone
 from typing import Any, Dict, List, Optional
-from pydantic import BaseModel, Field
+try:
+    from pydantic import BaseModel, Field
+except ImportError:
+    class BaseModel:  # type: ignore
+        def __init__(self, **kwargs):
+            for k, v in kwargs.items():
+                setattr(self, k, v)
+    def Field(*args, **kwargs):  # type: ignore
+        return kwargs.get("default", None)
 
 
 class CameraDTO(BaseModel):

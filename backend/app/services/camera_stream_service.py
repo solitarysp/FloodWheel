@@ -182,12 +182,19 @@ class CameraStreamService:
                         "Accept-Language": "en-US,en;q=0.9,vi;q=0.8",
                     }
                     async with httpx.AsyncClient(timeout=3.5, follow_redirects=True, verify=False) as client:
-                        resp = await client.get(stream_url, headers=headers)
-                        if resp.status_code == 200 and len(resp.content) > 100:
-                            if ImageValidator.is_valid_real_snapshot(resp.content):
-                                content_type = resp.headers.get("content-type", "image/jpeg").split(";")[0]
-                                cls._cache[camera_id] = (resp.content, content_type, now)
-                                return resp.content, content_type
+                        from app.config import settings
+                        retries = max(0, getattr(settings, "SNAPSHOT_ERROR_RETRY_COUNT", 3))
+                        for attempt in range(retries + 1):
+                            resp = await client.get(stream_url, headers=headers)
+                            if resp.status_code == 200 and len(resp.content) > 100:
+                                if ImageValidator.matches_known_error_hash(resp.content):
+                                    if attempt < retries:
+                                        continue
+                                    break
+                                if ImageValidator.is_valid_real_snapshot(resp.content):
+                                    content_type = resp.headers.get("content-type", "image/jpeg").split(";")[0]
+                                    cls._cache[camera_id] = (resp.content, content_type, now)
+                                    return resp.content, content_type
                 except Exception:
                     pass
 

@@ -53,6 +53,31 @@ class TestImageValidator(unittest.TestCase):
         self.assertFalse(ImageValidator.is_error_placeholder(jpeg_data))
         self.assertTrue(ImageValidator.is_valid_snapshot(jpeg_data))
 
+    def test_matches_known_error_hash(self):
+        """Verifies matches_known_error_hash correctly detects known MD5 and SHA256 hashes."""
+        sample_bytes = self.sample_error_path.read_bytes()
+        self.assertTrue(ImageValidator.matches_known_error_hash(sample_bytes))
+
+        # Check explicit MD5 '9653ea117b2c39d4c477b0949f95860e'
+        self.assertIn("9653ea117b2c39d4c477b0949f95860e", ImageValidator.KNOWN_ERROR_MD5)
+
+        # Check normal image does not match
+        normal_jpeg = b"\xff\xd8\xff\xe0" + b"\x12\x34" * 1000
+        self.assertFalse(ImageValidator.matches_known_error_hash(normal_jpeg))
+
+    def test_dynamic_known_error_hashes_from_env(self):
+        """Verifies extra hashes from ENV are incorporated."""
+        custom_data = b"custom-mock-error-frame-data-12345"
+        custom_md5 = hashlib.md5(custom_data).hexdigest()
+
+        self.assertFalse(ImageValidator.matches_known_error_hash(custom_data))
+
+        os.environ["KNOWN_ERROR_MD5"] = custom_md5
+        try:
+            self.assertTrue(ImageValidator.matches_known_error_hash(custom_data))
+        finally:
+            del os.environ["KNOWN_ERROR_MD5"]
+
 
 if __name__ == "__main__":
     unittest.main()

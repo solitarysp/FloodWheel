@@ -1,9 +1,13 @@
 """Snapshot extraction, fallback, and validation pipeline for HCMC camera feeds."""
 
+import asyncio
 import logging
 from typing import Any, Dict, Optional, Tuple
 
-import httpx
+try:
+    import httpx
+except ImportError:
+    httpx = None  # type: ignore
 
 from app.core.config import settings
 from app.providers.hcmc_mock import HCMCMockFrameGenerator
@@ -34,14 +38,19 @@ class HCMCSnapshotHandler:
         """Fetches the real-time JPEG snapshot from CameraHandler.ashx.
 
         If upstream fails or returns an error banner ('IMAGE NOT AVAILABLE'),
-        falls back to disk storage or synthetic frame.
+        retries up to configured N times if matching KNOWN_ERROR_MD5/SHA256,
+        then falls back to disk storage or synthetic frame.
         """
         url = f"{settings.HCMC_CAMERA_HANDLER_URL}?id={camera_id}&bg=black"
         if width and height:
             url += f"&w={width}&h={height}"
 
         current_cookies = cookies
-        for attempt in range(2):
+        max_error_retries = max(0, getattr(settings, "SNAPSHOT_ERROR_RETRY_COUNT", 3))
+        error_retries_done = 0
+        auth_retries_done = 0
+
+        while True:
             try:
                 resp = await self._client.get(
                     url,
@@ -50,13 +59,39 @@ class HCMCSnapshotHandler:
                 )
 
                 if resp.status_code in (401, 403) or len(resp.content) < 50:
-                    logger.warning("Snapshot 403/Forbidden for %s. Re-authenticating...", camera_id)
-                    current_cookies = await reauth_callback(force=True)
-                    continue
+                    if auth_retries_done < 1:
+                        auth_retries_done += 1
+                        logger.warning("Snapshot 403/Forbidden for %s. Re-authenticating...", camera_id)
+                        current_cookies = await reauth_callback(force=True)
+                        continue
+                    break
 
                 resp.raise_for_status()
 
-                # Validate payload: detect 'IMAGE NOT AVAILABLE' placeholder banners
+                # Check if payload matches known municipal error banner / synthetic frame hash
+                if ImageValidator.matches_known_error_hash(resp.content):
+                    if error_retries_done < max_error_retries:
+                        error_retries_done += 1
+                        logger.warning(
+                            "Camera %s returned known error placeholder hash. Retrying (%d/%d)...",
+                            camera_id,
+                            error_retries_done,
+                            max_error_retries,
+                        )
+                        delay = getattr(settings, "SNAPSHOT_ERROR_RETRY_DELAY_SECONDS", 0.0)
+                        if delay > 0:
+                            await asyncio.sleep(delay)
+                        continue
+
+                    logger.warning(
+                        "Camera %s returned known error placeholder hash. Retries exhausted (%d/%d). Rejecting payload.",
+                        camera_id,
+                        error_retries_done,
+                        max_error_retries,
+                    )
+                    break
+
+                # Validate payload: detect other corrupted headers or placeholder banners
                 if not ImageValidator.is_valid_snapshot(resp.content):
                     logger.warning(
                         "Upstream camera %s returned invalid or error placeholder image (%d bytes). Rejecting payload.",
@@ -69,13 +104,14 @@ class HCMCSnapshotHandler:
                 return resp.content, "live"
 
             except Exception as exc:
-                logger.warning("Snapshot fetch attempt %d failed for %s: %s", attempt + 1, camera_id, exc)
+                logger.warning("Snapshot fetch attempt failed for %s: %s", camera_id, exc)
                 # Fast fallback: if we have a valid snapshot on disk, return it immediately
                 disk_frame = await self._get_stored_frame(camera_id)
                 if disk_frame is not None:
                     return disk_frame, "disk-storage"
 
-                if attempt == 0:
+                if auth_retries_done < 1:
+                    auth_retries_done += 1
                     current_cookies = await reauth_callback(force=True)
                 else:
                     break

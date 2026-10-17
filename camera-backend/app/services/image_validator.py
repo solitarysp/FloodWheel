@@ -7,6 +7,7 @@ header mismatches, and corrupted or truncated frame payloads.
 import hashlib
 import io
 import logging
+import os
 from typing import Set
 from PIL import Image
 
@@ -35,6 +36,42 @@ class ImageValidator:
     MAX_ERROR_PNG_SIZE_BYTES: int = 6000
 
     @classmethod
+    def get_known_error_md5(cls) -> Set[str]:
+        """Returns known error MD5 hashes including any configured via ENV."""
+        hashes = set(cls.KNOWN_ERROR_MD5)
+        extra = os.getenv("KNOWN_ERROR_MD5") or os.getenv("EXTRA_ERROR_MD5")
+        if extra:
+            hashes.update(h.strip().lower() for h in extra.split(",") if h.strip())
+        return hashes
+
+    @classmethod
+    def get_known_error_sha256(cls) -> Set[str]:
+        """Returns known error SHA256 hashes including any configured via ENV."""
+        hashes = set(cls.KNOWN_ERROR_SHA256)
+        extra = os.getenv("KNOWN_ERROR_SHA256") or os.getenv("EXTRA_ERROR_SHA256")
+        if extra:
+            hashes.update(h.strip().lower() for h in extra.split(",") if h.strip())
+        return hashes
+
+    @classmethod
+    def matches_known_error_hash(cls, data: bytes) -> bool:
+        """Determines whether a payload matches known error MD5 or SHA256 checksums."""
+        if not data:
+            return False
+
+        md5_digest = hashlib.md5(data).hexdigest().lower()
+        if md5_digest in cls.get_known_error_md5():
+            logger.warning("Detected known error hash match (MD5: %s)", md5_digest)
+            return True
+
+        sha256_digest = hashlib.sha256(data).hexdigest().lower()
+        if sha256_digest in cls.get_known_error_sha256():
+            logger.warning("Detected known error hash match (SHA256: %s)", sha256_digest)
+            return True
+
+        return False
+
+    @classmethod
     def is_error_placeholder(cls, data: bytes) -> bool:
         """Determines whether a payload is a municipal error placeholder banner.
 
@@ -47,16 +84,8 @@ class ImageValidator:
         if not data or len(data) < cls.MIN_VALID_SIZE_BYTES:
             return True
 
-        # Factor 1: Exact MD5 match
-        md5_digest = hashlib.md5(data).hexdigest()
-        if md5_digest in cls.KNOWN_ERROR_MD5:
-            logger.warning("Detected error banner via MD5 match: %s", md5_digest)
-            return True
-
-        # Factor 2: Exact SHA256 match
-        sha256_digest = hashlib.sha256(data).hexdigest()
-        if sha256_digest in cls.KNOWN_ERROR_SHA256:
-            logger.warning("Detected error banner via SHA256 match: %s", sha256_digest)
+        # Factor 1 & 2: Exact MD5 / SHA256 match
+        if cls.matches_known_error_hash(data):
             return True
 
         # Factor 3: PNG format on snapshot feed with small payload size
@@ -74,12 +103,7 @@ class ImageValidator:
         if not data or len(data) < cls.MIN_VALID_SIZE_BYTES:
             return True
 
-        md5_digest = hashlib.md5(data).hexdigest()
-        if md5_digest in cls.KNOWN_ERROR_MD5:
-            return True
-
-        sha256_digest = hashlib.sha256(data).hexdigest()
-        if sha256_digest in cls.KNOWN_ERROR_SHA256:
+        if cls.matches_known_error_hash(data):
             return True
 
         try:
