@@ -13,7 +13,6 @@ from app.models.db_models import FloodReadingDB, FloodZone
 from app.models.flood_reading import AnalysisResponse
 from app.services.camera_registry import CameraRegistry
 from app.services.camera_service_client import CameraServiceClient
-from app.services.camera_snapshot_finder import CameraSnapshotFinder
 from app.services.camera_stream_service import CameraStreamService
 from app.services.flood_analysis_service import FloodAnalysisService
 from app.services.flood_reading_parser import FloodReadingParser
@@ -85,10 +84,11 @@ async def list_cameras(
                 except Exception:
                     pass
 
-    # Exclude cameras that have no authentic snapshot on disk or cache (excludes mock/synthetic fallbacks)
+    # Exclude cameras that have no authentic snapshot according to camera-backend API
     if only_valid_snapshots:
-        valid_ids = CameraSnapshotFinder.get_valid_snapshot_camera_ids()
-        merged = [cam for cam in merged if cam.id in valid_ids]
+        valid_ids = await camera_service_client.get_valid_snapshot_ids()
+        if valid_ids:
+            merged = [cam for cam in merged if cam.id in valid_ids]
 
     # Attach latest flood readings across all cameras
     latest_readings_stmt = (
@@ -166,7 +166,7 @@ async def get_camera_snapshot(
     t: Optional[int] = Query(None, description="Cache buster timestamp"),
     db: AsyncSession = Depends(get_db),
 ):
-    """Proxies the latest image frame from camera-backend, persistent disk storage, or stream URL."""
+    """Proxies the latest image frame from camera-backend via API, cache, or stream URL."""
     cam = await CameraRegistry.get_by_id(db, camera_id)
     stream_url = cam.stream_url if cam else ""
     camera_name = cam.name if cam else camera_id

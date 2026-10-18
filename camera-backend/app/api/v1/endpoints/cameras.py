@@ -1,6 +1,6 @@
 """Camera query and snapshot proxy endpoints."""
 
-from typing import Optional
+from typing import List, Optional
 from fastapi import APIRouter, Depends, HTTPException, Query, Request, Response, status
 
 from app.api.deps import get_catalog_service
@@ -56,6 +56,14 @@ async def list_cameras(
     return await catalog.get_cameras(query)
 
 
+@router.get("/snapshots/valid-ids", response_model=List[str])
+async def get_valid_snapshot_camera_ids(
+    catalog: CatalogService = Depends(get_catalog_service),
+):
+    """Retrieves list of camera IDs with authentic snapshots stored in camera-backend."""
+    return await catalog.get_valid_snapshot_ids()
+
+
 @router.get("/{camera_id}", response_model=CameraDTO)
 async def get_camera_by_id(
     camera_id: str,
@@ -77,6 +85,7 @@ async def get_camera_snapshot(
     w: Optional[int] = Query(None, ge=160, le=1920, description="Optional resize width"),
     h: Optional[int] = Query(None, ge=120, le=1080, description="Optional resize height"),
     force_refresh: bool = Query(False, description="Bypass cache and force upstream refresh"),
+    storage_only: bool = Query(False, description="Only return stored snapshot from disk/cache without upstream fetch"),
     catalog: CatalogService = Depends(get_catalog_service),
 ):
     """Proxies and streams JPEG snapshot image with automated Redis caching."""
@@ -86,11 +95,18 @@ async def get_camera_snapshot(
             width=w,
             height=h,
             force_refresh=force_refresh,
+            storage_only=storage_only,
         )
     except Exception as exc:
         raise HTTPException(
             status_code=status.HTTP_502_BAD_GATEWAY,
             detail=f"Failed to retrieve snapshot frame: {str(exc)}",
+        )
+
+    if not frame_bytes:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"No stored snapshot frame available for camera '{camera_id}'.",
         )
 
     return Response(

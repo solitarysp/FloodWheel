@@ -158,22 +158,29 @@ class CatalogService:
 
     _matches_filter = staticmethod(CameraFilterMatcher.matches_filter)
 
+    async def get_valid_snapshot_ids(self) -> List[str]:
+        """Returns list of camera IDs that have verified valid snapshots on disk."""
+        if not self.storage_service or not self.storage_service.storage_dir.is_dir():
+            return []
+        from app.services.image_validator import ImageValidator
+        valid_ids: List[str] = []
+        for p in self.storage_service.storage_dir.glob("*.jpg"):
+            try:
+                data = p.read_bytes()
+                if ImageValidator.is_valid_snapshot(data):
+                    valid_ids.append(p.stem)
+            except Exception:
+                pass
+        return valid_ids
+
     async def get_cameras(self, query: CameraFilterQuery) -> CameraListResponse:
         """Searches and paginates camera records."""
         if not self._cameras_list and "hcmc" in self._providers:
             await self.sync_provider("hcmc")
 
         valid_snapshot_ids = None
-        if query.has_snapshot is True and self.storage_service and self.storage_service.storage_dir.is_dir():
-            from app.services.image_validator import ImageValidator
-            valid_snapshot_ids = set()
-            for p in self.storage_service.storage_dir.glob("*.jpg"):
-                try:
-                    data = p.read_bytes()
-                    if ImageValidator.is_valid_snapshot(data):
-                        valid_snapshot_ids.add(p.stem)
-                except Exception:
-                    pass
+        if query.has_snapshot is True:
+            valid_snapshot_ids = set(await self.get_valid_snapshot_ids())
 
         filtered = [
             c for c in self._cameras_list
@@ -197,7 +204,8 @@ class CatalogService:
         width: Optional[int] = None,
         height: Optional[int] = None,
         force_refresh: bool = False,
-    ) -> Tuple[bytes, str, bool, str]:
+        storage_only: bool = False,
+    ) -> Tuple[Optional[bytes], str, bool, str]:
         """Retrieves camera snapshot frame (image_bytes, content_type, is_cached_hit, fallback_source)."""
         return await self._snapshot_handler.get_snapshot(
             camera_id=camera_id,
@@ -206,4 +214,5 @@ class CatalogService:
             width=width,
             height=height,
             force_refresh=force_refresh,
+            storage_only=storage_only,
         )

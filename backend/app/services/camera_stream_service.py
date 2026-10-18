@@ -112,9 +112,8 @@ class CameraStreamService:
 
     @classmethod
     def get_stored_disk_snapshot(cls, camera_id: str) -> Optional[bytes]:
-        """Reads camera snapshot from local persistent disk storage if present and valid."""
-        from app.services.camera_snapshot_finder import CameraSnapshotFinder
-        return CameraSnapshotFinder.get_stored_disk_snapshot(camera_id)
+        """Deprecated: snapshots are now served strictly via camera-backend HTTP API."""
+        return None
 
     @classmethod
     async def get_snapshot_bytes(
@@ -128,10 +127,10 @@ class CameraStreamService:
         """Fetches raw snapshot frame bytes and MIME type.
 
         Resolution hierarchy:
-        - If storage_only=True: strictly checks local persistent disk storage (or cache)
-          and NEVER performs outbound network calls. Returns (None, "") if unavailable.
-        - Otherwise: checks cache, camera-backend, persistent disk storage, public stream URL,
-          and synthetic mock frame fallback.
+        1. In-memory cache (TTL: 5s).
+        2. camera-backend microservice HTTP API (with storage_only support).
+        3. External public stream URL (if provided and valid, when not storage_only).
+        4. Synthetic mock frame fallback (when not storage_only).
         """
         from app.services.image_validator import ImageValidator
         now = time.time()
@@ -140,22 +139,11 @@ class CameraStreamService:
         if not force_refresh and camera_id in cls._cache:
             cached_bytes, cached_mime, cached_at = cls._cache[camera_id]
             if now - cached_at < cls.CACHE_TTL_SECONDS:
-                if ImageValidator.is_valid_real_snapshot(cached_bytes):
-                    return cached_bytes, cached_mime
+                if not ImageValidator.matches_known_error_hash(cached_bytes):
+                    if not storage_only or ImageValidator.is_valid_real_snapshot(cached_bytes):
+                        return cached_bytes, cached_mime
 
-        # 2. Check local persistent disk storage (e.g. storage/snapshots/{camera_id}.jpg)
-        if camera_id:
-            disk_bytes = cls.get_stored_disk_snapshot(camera_id)
-            if disk_bytes and ImageValidator.is_valid_real_snapshot(disk_bytes):
-                cls._cache[camera_id] = (disk_bytes, "image/jpeg", now)
-                return disk_bytes, "image/jpeg"
-
-        # If caller requested storage_only (e.g. backend AI analysis cycle), exit cleanly without network
-        if storage_only:
-            logger.info("Storage-only mode: no disk snapshot found for camera %s. Skipping outbound fetch.", camera_id)
-            return None, ""
-
-        # 3. Try camera-backend microservice (live on-demand request)
+        # 2. Try camera-backend microservice via HTTP API
         if camera_id:
             try:
                 from app.services.camera_service_client import camera_service_client
@@ -163,14 +151,20 @@ class CameraStreamService:
                     camera_id=camera_id,
                     camera_name=camera_name,
                     force_refresh=force_refresh,
+                    storage_only=storage_only,
                 )
                 if remote_bytes and ImageValidator.is_valid_real_snapshot(remote_bytes):
                     cls._cache[camera_id] = (remote_bytes, remote_mime, now)
                     return remote_bytes, remote_mime
             except Exception as exc:
-                logger.debug("camera_service_client query failed for %s: %s", camera_id, exc)
+                logger.debug("camera_service_client API query failed for %s: %s", camera_id, exc)
 
-        # 4. Attempt to fetch live frame from public stream URL (if valid external URL)
+        # If caller requested storage_only, exit cleanly without live fetching
+        if storage_only:
+            logger.info("Storage-only mode: no stored snapshot available for camera %s via API.", camera_id)
+            return None, ""
+
+        # 3. Attempt to fetch live frame from public stream URL (if valid external URL)
         if stream_url:
             is_valid, _ = cls.validate_stream_url(stream_url)
             if is_valid:
@@ -198,7 +192,7 @@ class CameraStreamService:
                 except Exception:
                     pass
 
-        # 5. Last resort: Generate synthetic fallback CCTV frame
+        # 4. Last resort: Generate synthetic fallback CCTV frame
         mock_bytes = cls.generate_mock_frame(camera_id, camera_name)
         cls._cache[camera_id] = (mock_bytes, "image/jpeg", now)
         return mock_bytes, "image/jpeg"

@@ -1,25 +1,27 @@
 """Camera Service Client Adapter.
 
-Connects FloodWheel's core backend to the dedicated camera-backend microservice (:8001),
-with automatic fallback to local camera registry and synthetic CCTV frames.
+Connects FloodWheel's core backend to the dedicated camera-backend microservice (:8001)
+strictly via HTTP APIs, with automated TTL caching and graceful fallback handling.
 """
 
 import logging
-from typing import Any, Dict, List, Optional, Tuple
+import time
+from typing import Any, Dict, List, Optional, Set, Tuple
 try:
     import httpx
 except ImportError:
     httpx = None
 
 from app.config import settings
-from app.models.camera import CameraResponse
-from app.services.camera_stream_service import CameraStreamService
 
 logger = logging.getLogger("floodwheel.camera_service_client")
 
 
 class CameraServiceClient:
     """HTTP client adapter consuming the camera-backend microservice."""
+
+    _valid_ids_cache: Optional[Tuple[Set[str], float]] = None
+    CACHE_TTL_SECONDS: float = 30.0
 
     def __init__(self, base_url: Optional[str] = None):
         self.base_url = (base_url or settings.CAMERA_BACKEND_URL).rstrip("/")
@@ -54,7 +56,7 @@ class CameraServiceClient:
         if not client:
             return None
 
-        params = {
+        params: Dict[str, Any] = {
             "city": city,
             "limit": limit,
             "offset": offset,
@@ -91,6 +93,50 @@ class CameraServiceClient:
             logger.warning("Failed to fetch camera %s from camera-backend: %s", camera_id, exc)
         return None
 
+    async def get_valid_snapshot_ids(self, force_refresh: bool = False) -> Set[str]:
+        """Fetches set of all camera IDs with verified snapshots via camera-backend API."""
+        now = time.time()
+        if not force_refresh and self._valid_ids_cache is not None:
+            cached_ids, cached_time = self._valid_ids_cache
+            if now - cached_time < self.CACHE_TTL_SECONDS:
+                return cached_ids
+
+        client = self._get_client()
+        if client:
+            try:
+                # 1. Preferred dedicated endpoint: GET /api/v1/cameras/snapshots/valid-ids
+                resp = await client.get("/api/v1/cameras/snapshots/valid-ids")
+                if resp.status_code == 200:
+                    data = resp.json()
+                    if isinstance(data, list):
+                        valid_ids = {str(cid).strip() for cid in data if str(cid).strip()}
+                        self._valid_ids_cache = (valid_ids, now)
+                        logger.info("Retrieved %d valid snapshot camera IDs from camera-backend API.", len(valid_ids))
+                        return valid_ids
+            except Exception as exc:
+                logger.debug("Failed querying /snapshots/valid-ids: %s. Trying list_cameras fallback.", exc)
+
+            # 2. Fallback: GET /api/v1/cameras?has_snapshot=true
+            try:
+                items = await self.list_cameras(has_snapshot=True, limit=1000)
+                if items:
+                    valid_ids = {str(item.get("id")).strip() for item in items if item.get("id")}
+                    self._valid_ids_cache = (valid_ids, now)
+                    return valid_ids
+            except Exception as exc:
+                logger.warning("Failed discovering valid snapshot IDs via API: %s", exc)
+
+        if self._valid_ids_cache is not None:
+            return self._valid_ids_cache[0]
+        return set()
+
+    async def has_valid_snapshot(self, camera_id: str) -> bool:
+        """Checks if a camera possesses an authentic snapshot according to camera-backend."""
+        if not camera_id:
+            return False
+        valid_ids = await self.get_valid_snapshot_ids()
+        return camera_id in valid_ids
+
     async def get_snapshot_bytes(
         self,
         camera_id: str,
@@ -98,17 +144,24 @@ class CameraServiceClient:
         width: Optional[int] = None,
         height: Optional[int] = None,
         force_refresh: bool = False,
-    ) -> Tuple[bytes, str]:
-        """Fetches JPEG snapshot bytes from camera-backend or generates fallback frame."""
+        storage_only: bool = False,
+    ) -> Tuple[Optional[bytes], str]:
+        """Fetches JPEG snapshot bytes from camera-backend API.
+        
+        When storage_only=True, only stored frames are returned without upstream live scraping.
+        When storage_only=False, falls back to synthetic mock frame if camera-backend is unreachable.
+        """
         client = self._get_client()
         if client:
-            params = {}
+            params: Dict[str, Any] = {}
             if width:
                 params["w"] = width
             if height:
                 params["h"] = height
             if force_refresh:
                 params["force_refresh"] = "true"
+            if storage_only:
+                params["storage_only"] = "true"
 
             try:
                 resp = await client.get(f"/api/v1/cameras/{camera_id}/snapshot", params=params)
@@ -119,13 +172,10 @@ class CameraServiceClient:
             except Exception as exc:
                 logger.warning("Failed to pull snapshot from camera-backend for %s: %s", camera_id, exc)
 
-        # Fallback 1: check local persistent disk storage (e.g. storage/snapshots/{camera_id}.jpg)
-        from app.services.image_validator import ImageValidator
-        disk_bytes = CameraStreamService.get_stored_disk_snapshot(camera_id)
-        if disk_bytes and ImageValidator.is_valid_real_snapshot(disk_bytes):
-            return disk_bytes, "image/jpeg"
+        if storage_only:
+            return None, ""
 
-        # Fallback 2: high-contrast synthetic frame
+        from app.services.camera_stream_service import CameraStreamService
         return CameraStreamService.generate_mock_frame(camera_id, camera_name), "image/jpeg"
 
 

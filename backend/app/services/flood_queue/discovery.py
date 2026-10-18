@@ -42,8 +42,7 @@ class CameraDiscoverer:
         except Exception as exc:
             logger.warning("Could not query cameras from local DB: %s", exc)
 
-        from app.services.camera_snapshot_finder import CameraSnapshotFinder
-        valid_snapshot_ids = CameraSnapshotFinder.get_valid_snapshot_camera_ids()
+        valid_snapshot_ids = await self.camera_service_client.get_valid_snapshot_ids()
 
         try:
             remote_cams = await self.camera_service_client.list_cameras(has_snapshot=True, limit=500)

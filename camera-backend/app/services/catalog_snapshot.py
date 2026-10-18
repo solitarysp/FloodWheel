@@ -30,7 +30,8 @@ class CatalogSnapshotService:
         width: Optional[int] = None,
         height: Optional[int] = None,
         force_refresh: bool = False,
-    ) -> Tuple[bytes, str, bool, str]:
+        storage_only: bool = False,
+    ) -> Tuple[Optional[bytes], str, bool, str]:
         """Retrieves camera snapshot frame.
 
         Returns: (image_bytes, content_type, is_cached_hit, fallback_source)
@@ -40,6 +41,16 @@ class CatalogSnapshotService:
             cached_bytes = await self.cache_service.get_snapshot(camera_id)
             if cached_bytes:
                 return cached_bytes, "image/jpeg", True, "redis"
+
+        # If caller requested storage_only, check disk storage without upstream provider fetch
+        if storage_only:
+            if self.storage_service:
+                stored = await self.storage_service.get_snapshot(camera_id)
+                if stored:
+                    from app.services.image_validator import ImageValidator
+                    if ImageValidator.is_valid_snapshot(stored):
+                        return stored, "image/jpeg", False, "disk-storage"
+            return None, "", False, "none"
 
         # 2. Determine owning provider
         cam = cameras_by_id.get(camera_id)

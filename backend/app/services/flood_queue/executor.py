@@ -51,7 +51,7 @@ class TaskExecutor:
             else:
                 image_b64 = item.params.get("image_base64")
                 force_ref = item.params.get("force_refresh", False)
-                # For automated cycle runs, read strictly from stored disk snapshot files
+                # For automated cycle runs, request stored snapshot frames via camera-backend API
                 storage_only = (item.task_type == "cycle_camera" or item.source == "automated_scheduler")
                 async with AsyncSessionLocal() as session:
                     res = await self.analysis_service.analyze_single_camera(
