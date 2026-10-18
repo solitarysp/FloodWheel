@@ -53,12 +53,6 @@
 * **Frontend:** Next.js 14, React, Tailwind CSS, Leaflet/MapLibre GIS.
 * **DevOps:** Docker, Docker Compose, automated multi-service orchestration.
 
----
-
-## 📁 Team Branding Assets
-
-* **High-Res AI Badge:** [`zeroflood_logo_png_1791614981478.jpg`](file:///Users/le.van.thanh/.gemini/antigravity-cli/brain/c94525fd-6829-4ac4-a892-6999dc33bb32/zeroflood_logo_png_1791614981478.jpg)
-* **Scalable Vector SVG:** [`demo-assets/zeroflood-logo.svg`](file:///Users/le.van.thanh/Documents/project/canhan/FloodWheel/demo-assets/zeroflood-logo.svg)
 
 ---
 
