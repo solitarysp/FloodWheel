@@ -1,0 +1,144 @@
+"""Image validation engine for camera snapshot payloads.
+
+Detects municipal error placeholder banners ('IMAGE NOT AVAILABLE'),
+header mismatches, and corrupted or truncated frame payloads.
+"""
+
+import hashlib
+import io
+import logging
+import os
+from typing import Set
+from PIL import Image
+
+logger = logging.getLogger("camera_service.validator")
+
+
+class ImageValidator:
+    """Multi-factor image payload validator."""
+
+    # Exact hash signatures of known municipal error banners & default synthetic frames
+    KNOWN_ERROR_MD5: Set[str] = {
+        "9653ea117b2c39d4c477b0949f95860e",  # Municipal 'IMAGE NOT AVAILABLE' banner
+        "b107ef1b97a1eae7a3345879b133299e",  # Default synthetic frame (snapshot (1).jpeg)
+    }
+    KNOWN_ERROR_SHA256: Set[str] = {
+        "44246c5dfb69d91cffde872630d789488bf0e603ceda9c53b1984185aec4ffba",
+        "e2da96a01715c2e4f937db4554d7ca7750b522b890e0fd75d7c64dfd84bc3a7d",
+    }
+
+    # Binary magic headers
+    PNG_MAGIC: bytes = b"\x89PNG\r\n\x1a\n"
+    JPEG_MAGIC: bytes = b"\xff\xd8"
+
+    # Thresholds
+    MIN_VALID_SIZE_BYTES: int = 500
+    MAX_ERROR_PNG_SIZE_BYTES: int = 6000
+
+    @classmethod
+    def get_known_error_md5(cls) -> Set[str]:
+        """Returns known error MD5 hashes including any configured via ENV."""
+        hashes = set(cls.KNOWN_ERROR_MD5)
+        extra = os.getenv("KNOWN_ERROR_MD5") or os.getenv("EXTRA_ERROR_MD5")
+        if extra:
+            hashes.update(h.strip().lower() for h in extra.split(",") if h.strip())
+        return hashes
+
+    @classmethod
+    def get_known_error_sha256(cls) -> Set[str]:
+        """Returns known error SHA256 hashes including any configured via ENV."""
+        hashes = set(cls.KNOWN_ERROR_SHA256)
+        extra = os.getenv("KNOWN_ERROR_SHA256") or os.getenv("EXTRA_ERROR_SHA256")
+        if extra:
+            hashes.update(h.strip().lower() for h in extra.split(",") if h.strip())
+        return hashes
+
+    @classmethod
+    def matches_known_error_hash(cls, data: bytes) -> bool:
+        """Determines whether a payload matches known error MD5 or SHA256 checksums."""
+        if not data:
+            return False
+
+        md5_digest = hashlib.md5(data).hexdigest().lower()
+        if md5_digest in cls.get_known_error_md5():
+            logger.warning("Detected known error hash match (MD5: %s)", md5_digest)
+            return True
+
+        sha256_digest = hashlib.sha256(data).hexdigest().lower()
+        if sha256_digest in cls.get_known_error_sha256():
+            logger.warning("Detected known error hash match (SHA256: %s)", sha256_digest)
+            return True
+
+        return False
+
+    @classmethod
+    def is_error_placeholder(cls, data: bytes) -> bool:
+        """Determines whether a payload is a municipal error placeholder banner.
+
+        Returns True if:
+        1. Payload is empty or below minimum valid payload size (< 500 bytes).
+        2. Exact MD5 or SHA256 matches known error banner checksums.
+        3. Header is a PNG file under 6,000 bytes (HCMC CCTV feeds serve JPEGs;
+           error banners are small PNGs disguised with .ashx or .jpeg extensions).
+        """
+        if not data or len(data) < cls.MIN_VALID_SIZE_BYTES:
+            return True
+
+        # Factor 1 & 2: Exact MD5 / SHA256 match
+        if cls.matches_known_error_hash(data):
+            return True
+
+        # Factor 3: PNG format on snapshot feed with small payload size
+        if data.startswith(cls.PNG_MAGIC) and len(data) <= cls.MAX_ERROR_PNG_SIZE_BYTES:
+            logger.warning(
+                "Detected error banner via small PNG payload (%d bytes)", len(data)
+            )
+            return True
+
+        return False
+
+    @classmethod
+    def is_default_synthetic_frame(cls, data: bytes) -> bool:
+        """Detects whether a payload is a default/synthetic CCTV frame."""
+        if not data or len(data) < cls.MIN_VALID_SIZE_BYTES:
+            return True
+
+        if cls.matches_known_error_hash(data):
+            return True
+
+        try:
+            im = Image.open(io.BytesIO(data))
+            w, h = im.size
+            if (w, h) == (640, 360):
+                p_sky = im.getpixel((10, 50))
+                p_road = im.getpixel((10, 180))
+                p_water = im.getpixel((100, 250))
+                p_bot = im.getpixel((10, 345))
+
+                def _close(p, target, tol=14):
+                    return all(abs(a - b) <= tol for a, b in zip(p[:3], target))
+
+                if (
+                    _close(p_sky, (35, 42, 54))
+                    and _close(p_road, (45, 50, 58))
+                    and _close(p_water, (38, 62, 78))
+                    and _close(p_bot, (15, 18, 24))
+                ):
+                    return True
+        except Exception:
+            pass
+
+        return False
+
+    @classmethod
+    def is_valid_snapshot(cls, data: bytes) -> bool:
+        """Returns True if the payload is a valid camera snapshot frame."""
+        if cls.is_error_placeholder(data) or cls.is_default_synthetic_frame(data):
+            return False
+
+        # Verify it has valid image magic headers (JPEG or standard PNG)
+        if not (data.startswith(cls.JPEG_MAGIC) or data.startswith(cls.PNG_MAGIC)):
+            logger.warning("Payload does not start with valid image magic bytes.")
+            return False
+
+        return True

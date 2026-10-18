@@ -1,0 +1,199 @@
+from datetime import datetime, timezone
+from typing import List, Optional
+from fastapi import HTTPException
+from sqlalchemy import select
+from sqlalchemy.ext.asyncio import AsyncSession
+
+from app.models.camera import CameraCreate, CameraUpdate
+from app.models.db_models import Camera, FloodZone
+
+
+class CameraRegistry:
+    """Service for managing camera devices and health state."""
+
+    @staticmethod
+    async def get_all(session: AsyncSession, zone_id: Optional[str] = None) -> List[Camera]:
+        stmt = select(Camera)
+        if zone_id:
+            stmt = stmt.where(Camera.zone_id == zone_id)
+        result = await session.execute(stmt)
+        return list(result.scalars().all())
+
+    @staticmethod
+    async def get_by_id(session: AsyncSession, camera_id: str) -> Optional[Camera]:
+        return await session.get(Camera, camera_id)
+
+    @staticmethod
+    async def create(session: AsyncSession, camera_in: CameraCreate) -> Camera:
+        # Validate zone_id if specified
+        if camera_in.zone_id:
+            zone = await session.get(FloodZone, camera_in.zone_id)
+            if not zone:
+                raise HTTPException(
+                    status_code=400,
+                    detail=f"Flood zone '{camera_in.zone_id}' does not exist. Choose an existing zone or leave unassigned.",
+                )
+
+        cam = Camera(
+            id=camera_in.id,
+            name=camera_in.name,
+            location=camera_in.location,
+            latitude=camera_in.latitude,
+            longitude=camera_in.longitude,
+            camera_angle=camera_in.camera_angle,
+            stream_url=camera_in.stream_url,
+            video_url=camera_in.video_url,
+            zone_id=camera_in.zone_id,
+            status="ONLINE",
+            failed_polls_count=0,
+            last_polled_at=datetime.now(timezone.utc),
+        )
+
+        try:
+            session.add(cam)
+            await session.commit()
+            await session.refresh(cam)
+            return cam
+        except HTTPException:
+            await session.rollback()
+            raise
+        except Exception as exc:
+            await session.rollback()
+            raise HTTPException(
+                status_code=400,
+                detail=f"Failed to register camera: {str(exc)}",
+            )
+
+    @staticmethod
+    def _slugify(text: str) -> str:
+        import re
+        import unicodedata
+        nfkd = unicodedata.normalize("NFKD", text)
+        ascii_text = "".join([c for c in nfkd if not unicodedata.combining(c)])
+        clean = re.sub(r"[^a-zA-Z0-9]+", "-", ascii_text.strip().lower()).strip("-")
+        return clean or "hcmc"
+
+    @classmethod
+    async def _atomic_insert_or_ignore(cls, session: AsyncSession, model_cls: type, values: dict) -> None:
+        """Executes atomic insert ignoring primary key conflicts across concurrent workers."""
+        try:
+            bind = getattr(session, "bind", None) or (session.get_bind() if hasattr(session, "get_bind") else None)
+            dialect_name = getattr(getattr(bind, "dialect", None), "name", "postgresql")
+        except Exception:
+            dialect_name = "postgresql"
+
+        try:
+            if dialect_name == "postgresql":
+                from sqlalchemy.dialects.postgresql import insert as pg_insert
+                stmt = pg_insert(model_cls).values(**values).on_conflict_do_nothing(index_elements=["id"])
+                await session.execute(stmt)
+            elif dialect_name == "sqlite":
+                from sqlalchemy.dialects.sqlite import insert as sqlite_insert
+                stmt = sqlite_insert(model_cls).values(**values).on_conflict_do_nothing(index_elements=["id"])
+                await session.execute(stmt)
+            else:
+                from sqlalchemy.exc import IntegrityError
+                async with session.begin_nested():
+                    session.add(model_cls(**values))
+                    await session.flush()
+        except Exception:
+            try:
+                from sqlalchemy.exc import IntegrityError
+                async with session.begin_nested():
+                    session.add(model_cls(**values))
+                    await session.flush()
+            except (IntegrityError, Exception):
+                pass
+
+    @classmethod
+    async def ensure_camera_and_zone(
+        cls,
+        session: AsyncSession,
+        camera_id: str,
+        name: str,
+        location: str,
+        latitude: float,
+        longitude: float,
+        stream_url: Optional[str] = None,
+        camera_angle: str = "elevated",
+        status: str = "ONLINE",
+    ) -> Camera:
+        import json
+
+        district_name = location or "TP. Hồ Chí Minh"
+        zone_slug = f"zone-{cls._slugify(district_name)}"
+
+        # 1. Ensure FloodZone exists safely without concurrency race
+        zone = await session.get(FloodZone, zone_slug)
+        if not zone:
+            c_lat, c_lng = latitude or 10.7769, longitude or 106.7009
+            zone_values = {
+                "id": zone_slug,
+                "name": f"Khu vực {district_name}",
+                "district": district_name,
+                "city": "hcmc",
+                "center_lat": c_lat,
+                "center_lng": c_lng,
+                "geometry_geojson": json.dumps({"type": "Point", "coordinates": [c_lng, c_lat]}),
+                "current_depth_level": 0,
+                "current_depth_cm_min": 0,
+                "current_depth_cm_max": 0,
+                "is_overridden": False,
+                "last_updated_at": datetime.now(timezone.utc),
+            }
+            await cls._atomic_insert_or_ignore(session, FloodZone, zone_values)
+            zone = await session.get(FloodZone, zone_slug)
+
+        # 2. Ensure Camera exists safely without concurrency race
+        cam = await session.get(Camera, camera_id)
+        cam_values = {
+            "id": camera_id,
+            "name": name or camera_id,
+            "location": location or district_name,
+            "latitude": latitude or 10.7769,
+            "longitude": longitude or 106.7009,
+            "camera_angle": camera_angle or "elevated",
+            "stream_url": stream_url or f"/cameras/{camera_id}/snapshot",
+            "zone_id": zone_slug,
+            "status": status or "ONLINE",
+            "failed_polls_count": 0,
+            "last_polled_at": datetime.now(timezone.utc),
+        }
+        if not cam:
+            await cls._atomic_insert_or_ignore(session, Camera, cam_values)
+            cam = await session.get(Camera, camera_id)
+
+        if cam:
+            if not cam.zone_id or (status and cam.status != status):
+                cam.zone_id = cam.zone_id or zone_slug
+                if status:
+                    cam.status = status
+                try:
+                    await session.flush()
+                except Exception:
+                    pass
+        else:
+            cam = Camera(**cam_values)
+
+        return cam
+
+    @staticmethod
+    async def record_poll_result(session: AsyncSession, camera_id: str, success: bool) -> Optional[Camera]:
+        cam = await session.get(Camera, camera_id)
+        if not cam:
+            return None
+
+        cam.last_polled_at = datetime.now(timezone.utc)
+        if success:
+            cam.failed_polls_count = 0
+            if cam.status == "OFFLINE":
+                cam.status = "ONLINE"
+        else:
+            cam.failed_polls_count += 1
+            # Mark OFFLINE after 5 consecutive failed polls
+            if cam.failed_polls_count >= 5:
+                cam.status = "OFFLINE"
+
+        await session.commit()
+        await session.refresh(cam)
+        return cam

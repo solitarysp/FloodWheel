@@ -1,0 +1,32 @@
+[
+  {
+    "image_name": "nguyen_huu_canh_level3.jpg",
+    "location": "Nguyen Huu Canh Street, Binh Thanh District, Ho Chi Minh City",
+    "expected_flood_detected": true,
+    "expected_depth_level": 3,
+    "depth_estimate_cm_min": 30,
+    "depth_estimate_cm_max": 38,
+    "reference_objects": ["motorcycle wheel (1/2 submerged)", "motorcycle exhaust pipe submerged", "sidewalk curb"],
+    "expected_alert": "Flood depth 30-38cm! Motorcycle exhaust submerged. 2-wheelers and sedans advised not to travel through this section."
+  },
+  {
+    "image_name": "vo_van_ngan_level4.jpg",
+    "location": "Vo Van Ngan Incline, Thu Duc City, Ho Chi Minh City",
+    "expected_flood_detected": true,
+    "expected_depth_level": 4,
+    "depth_estimate_cm_min": 50,
+    "depth_estimate_cm_max": 65,
+    "reference_objects": ["motorcycle seat level submerged", "car door sill submerged", "water current waves"],
+    "expected_alert": "Critical deep flood alert 50-65cm! Water level submerged motorcycle seats, flooding car floors. Corridor paralyzed."
+  },
+  {
+    "image_name": "le_loi_level0_dry.jpg",
+    "location": "Le Loi Boulevard, District 1, Ho Chi Minh City",
+    "expected_flood_detected": false,
+    "expected_depth_level": 0,
+    "depth_estimate_cm_min": 0,
+    "depth_estimate_cm_max": 0,
+    "reference_objects": ["motorcycle tires dry on asphalt", "curb fully visible"],
+    "expected_alert": "Road completely dry. All vehicles can travel normally."
+  }
+]

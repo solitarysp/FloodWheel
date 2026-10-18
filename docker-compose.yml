@@ -1,0 +1,141 @@
+services:
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: floodwheel-backend
+    restart: unless-stopped
+    ports:
+      - "8000:8000"
+    env_file:
+      - .env
+    environment:
+      - ENVIRONMENT=${ENVIRONMENT:-development}
+      - LOG_LEVEL=${LOG_LEVEL:-INFO}
+      - SECRET_KEY=${SECRET_KEY:-dev-secret-key-change-in-production}
+      - ADMIN_USERNAME=${ADMIN_USERNAME:-admin}
+      - ADMIN_PASSWORD=${ADMIN_PASSWORD:-admin123}
+      - ADMIN_JWT_SECRET=${ADMIN_JWT_SECRET:-floodwheel-admin-jwt-secret-key-change-in-prod}
+      - ADMIN_TOKEN_EXPIRE_HOURS=${ADMIN_TOKEN_EXPIRE_HOURS:-24}
+      - GEMINI_API_KEY=${GEMINI_API_KEY:-}
+      - GEMINI_API_KEYS=${GEMINI_API_KEYS:-}
+      - GEMINI_BASE_URL=${GEMINI_BASE_URL:-}
+      - GEMINI_MODEL=${GEMINI_MODEL:-gemini-3.5-flash-lite}
+      - GEMINI_FALLBACK_MODEL=${GEMINI_FALLBACK_MODEL:-gemini-3.1-flash-lite}
+      - GEMINI_MIN_CALL_INTERVAL_SECONDS=${GEMINI_MIN_CALL_INTERVAL_SECONDS:-6.0}
+      - AI_ANALYSIS_CONCURRENCY=${AI_ANALYSIS_CONCURRENCY:-1}
+      - FLOOD_QUEUE_INTERVAL_MINUTES=${FLOOD_QUEUE_INTERVAL_MINUTES:-30}
+      - FLOOD_QUEUE_AUTO_START=${FLOOD_QUEUE_AUTO_START:-false}
+      - FLOOD_QUEUE_MAX_CAMERAS_PER_CYCLE=${FLOOD_QUEUE_MAX_CAMERAS_PER_CYCLE:-15}
+      - FLOOD_ANALYSIS_CACHE_MINUTES=${FLOOD_ANALYSIS_CACHE_MINUTES:-5}
+      - DATABASE_URL=postgresql+asyncpg://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD:-postgres}@postgres:5432/${POSTGRES_DB:-floodwheel}
+      - REDIS_URL=redis://redis:6379/0
+      - CAMERA_BACKEND_URL=http://camera-backend:8001
+      - SNAPSHOT_ERROR_RETRY_COUNT=${SNAPSHOT_ERROR_RETRY_COUNT:-3}
+      - CORS_ORIGINS=["http://localhost:3000","http://127.0.0.1:3000", "https://zeroflood.web.app"]
+    volumes:
+      - ./backend:/app
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      camera-backend:
+        condition: service_started
+    networks:
+      - floodwheel-network
+
+  camera-backend:
+    build:
+      context: ./camera-backend
+      dockerfile: Dockerfile
+    container_name: floodwheel-camera-backend
+    restart: unless-stopped
+    ports:
+      - "8001:8001"
+    env_file:
+      - .env
+    environment:
+      - ENVIRONMENT=${ENVIRONMENT:-development}
+      - LOG_LEVEL=${LOG_LEVEL:-INFO}
+      - REDIS_URL=redis://redis:6379/1
+      - PORT=8001
+      - CORS_ORIGINS=["http://localhost:3000","http://127.0.0.1:3000","http://localhost:8000","http://127.0.0.1:8000","http://backend:8000"]
+      - SNAPSHOT_STORAGE_DIR=/app/storage/snapshots
+    volumes:
+      - ./camera-backend:/app
+    depends_on:
+      redis:
+        condition: service_healthy
+    networks:
+      - floodwheel-network
+
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    container_name: floodwheel-frontend
+    restart: unless-stopped
+    ports:
+      - "3000:3000"
+    env_file:
+      - .env
+    environment:
+      - NEXT_PUBLIC_API_URL=${NEXT_PUBLIC_API_URL:-http://localhost:8000}
+      - NEXT_PUBLIC_MAPBOX_TOKEN=${NEXT_PUBLIC_MAPBOX_TOKEN:-}
+      - NEXT_PUBLIC_CARTO_API_KEY=${NEXT_PUBLIC_CARTO_API_KEY:-cb1_4g68_1_c5828bbd64347d68c42bf808}
+      - NEXT_PUBLIC_DEFAULT_CITY=${NEXT_PUBLIC_DEFAULT_CITY:-hcmc}
+      - NEXT_PUBLIC_DEFAULT_LAT=${NEXT_PUBLIC_DEFAULT_LAT:-10.7769}
+      - NEXT_PUBLIC_DEFAULT_LNG=${NEXT_PUBLIC_DEFAULT_LNG:-106.7009}
+    volumes:
+      - ./frontend:/app
+      - /app/node_modules
+      - /app/.next
+    depends_on:
+      - backend
+    networks:
+      - floodwheel-network
+
+  postgres:
+    image: postgis/postgis:16-3.4
+    container_name: floodwheel-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-postgres}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-postgres}
+      POSTGRES_DB: ${POSTGRES_DB:-floodwheel}
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-postgres} -d ${POSTGRES_DB:-floodwheel}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - floodwheel-network
+
+  redis:
+    image: redis:7-alpine
+    container_name: floodwheel-redis
+    restart: unless-stopped
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - floodwheel-network
+
+networks:
+  floodwheel-network:
+    driver: bridge
+
+volumes:
+  postgres_data:
+  redis_data:
